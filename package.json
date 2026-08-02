@@ -1,0 +1,17 @@
+{
+  "name": "dp-sdk",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Delegate Permissions client SDKs (spec, TypeScript, Rust)",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "license": "MIT"
+}

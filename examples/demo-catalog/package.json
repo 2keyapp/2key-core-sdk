@@ -1,0 +1,28 @@
+{
+  "name": "@2key/demo-catalog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Product-neutral example CatalogSeed for Delegate Permissions",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node -e \"console.log('demo-catalog: no runtime tests')\""
+  },
+  "dependencies": {
+    "@2key/dp-spec": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "license": "MIT"
+}
