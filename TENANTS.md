@@ -8,7 +8,7 @@ AuthN = Better Auth · AuthZ = `delegate-permissions` CapabilitySets · Entitlem
 |------|---------|-----------------|----------------------|
 | `demo` | Demo | `@2key/catalog-demo` | Example only — hierarchical host / machine seats |
 | `scomm` | Scomm | `@2key/catalog-scomm` | **TBD** — discuss Auth + Billing |
-| `idr` | IDR | `@2key/catalog-idr` | **Populated** — DP FQHN hierarchy; Presence PEP (QUIC/WSS); machine seats + entitlement mux |
+| `idr` | IDR | `@2key/catalog-idr` | **Populated** — Personal/Enterprise/SP + Data Transfer UBB; see `catalogs/idr/BILLING_PACKAGES.md` |
 | `os20` | OS20 | `@2key/catalog-os20` | **TBD** — discuss Auth + Billing |
 | `stemsketch` | StemSketch | `@2key/catalog-stemsketch` | **TBD** — discuss Auth + Billing |
 | `mnms` | MnMs | `@2key/catalog-mnms` | **TBD** — discuss Auth + Billing |

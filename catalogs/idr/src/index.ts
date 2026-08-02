@@ -20,6 +20,12 @@ export const SERVICE_ID = "idr";
  * Target Agent → QUIC (`idr-presence-v1`) or WSS fallback → Presence with client cert /
  * CapabilityCredential. Presence authorizes CapabilitySet then checks Billing entitlement
  * over the Auth+Billing mux (`entitlement_check`).
+ *
+ * Packages (see BILLING_PACKAGES.md):
+ * - Personal: Source mTLS required; same-entity AuthZ; single-label hosts; ≤5 Targets.
+ * - Enterprise: Source mTLS; hierarchy / multi-admin / SCIM; ≤5 Targets.
+ * - Service Provider: anonymous Sources allowed; per-Target seat + optional CNAME.
+ * - Data Transfer: Target pays; bytes to+from Target on Relay/TURN; Sources not billed.
  */
 
 const IDR_ACTIONS = [
@@ -210,4 +216,18 @@ export const ENTITLEMENT_ACTION_MAP = {
   accept_session: "session.accept",
   ensure_relay: "presence.ensure_relay",
   mint_turn: "turn.mint",
+} as const;
+
+/** Commercial package codes seeded in Billing `040_idr_packages.sql`. */
+export const IDR_PLAN_CODES = {
+  personalBundle: "idr_personal_bundle",
+  enterpriseBundle: "idr_enterprise_bundle",
+  serviceProviderTarget: "idr_sp_target",
+  dataTransfer1Tb: "idr_data_transfer_1tb",
+} as const;
+
+/** Usage meters (Target pays; to+from Target). */
+export const IDR_METERS = {
+  relayBytes: "idr.relay.bytes",
+  turnBytes: "idr.turn.bytes",
 } as const;
