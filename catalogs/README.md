@@ -6,7 +6,7 @@ Named **CatalogSeed** packages for hosted Auth + Billing tenants. Each folder sl
 |------|---------|---------|--------|
 | `demo` | Demo | `@2key/catalog-demo` | Example hierarchical-host seed |
 | `scomm` | Scomm | `@2key/catalog-scomm` | Placeholder — Auth+Billing model TBD |
-| `idr` | IDR | `@2key/catalog-idr` | Placeholder — Auth+Billing model TBD |
+| `idr` | IDR | `@2key/catalog-idr` | Populated — see `catalogs/idr/README.md` |
 | `os20` | OS20 | `@2key/catalog-os20` | Placeholder — Auth+Billing model TBD |
 | `stemsketch` | StemSketch | `@2key/catalog-stemsketch` | Placeholder — Auth+Billing model TBD |
 | `mnms` | MnMs | `@2key/catalog-mnms` | Placeholder — Auth+Billing model TBD |
