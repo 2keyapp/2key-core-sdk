@@ -1,7 +1,7 @@
 {
-  "name": "@2key/dp-ts",
+  "name": "@2key/dp-presentation",
   "version": "0.1.0",
-  "description": "TypeScript SDK for Delegate Permissions Admin and Device clients",
+  "description": "Transport-agnostic Delegate Permissions presentation ports (no WebRTC)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,14 +9,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./admin": {
-      "types": "./dist/admin.d.ts",
-      "default": "./dist/admin.js"
-    },
-    "./device": {
-      "types": "./dist/device.d.ts",
-      "default": "./dist/device.js"
     }
   },
   "files": ["dist"],
@@ -26,9 +18,7 @@
     "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
-    "@2key/dp-presentation": "workspace:*",
-    "@2key/dp-spec": "workspace:*",
-    "jose": "^6.0.8"
+    "@2key/dp-spec": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

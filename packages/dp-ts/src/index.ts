@@ -10,6 +10,19 @@ export {
 } from "./device.js";
 export { generateEd25519KeyPair, randomLocalId } from "./keys.js";
 export type { KeyPairMaterial } from "./keys.js";
+export {
+  createInBandCredentialPresenter,
+  parseDpCredentialFrame,
+  DP_CREDENTIAL_FRAME_TYPE,
+} from "@2key/dp-presentation";
+export type {
+  CredentialPresenter,
+  DeviceIdentity,
+  DpCredentialFrame,
+  MtlsClientMaterial,
+  PepConnector,
+  PepSession,
+} from "@2key/dp-presentation";
 export type {
   CapabilityCredential,
   CapabilitySet,

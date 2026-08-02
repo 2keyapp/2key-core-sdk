@@ -1,7 +1,7 @@
 {
-  "name": "@2key/dp-ts",
+  "name": "@2key/dp-mtls",
   "version": "0.1.0",
-  "description": "TypeScript SDK for Delegate Permissions Admin and Device clients",
+  "description": "mTLS client materialization for Delegate Permissions (Node)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -9,14 +9,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./admin": {
-      "types": "./dist/admin.d.ts",
-      "default": "./dist/admin.js"
-    },
-    "./device": {
-      "types": "./dist/device.d.ts",
-      "default": "./dist/device.js"
     }
   },
   "files": ["dist"],
@@ -28,10 +20,11 @@
   "dependencies": {
     "@2key/dp-presentation": "workspace:*",
     "@2key/dp-spec": "workspace:*",
-    "jose": "^6.0.8"
+    "@peculiar/x509": "^1.12.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "jose": "^6.0.8",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   },
