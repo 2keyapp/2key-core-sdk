@@ -1,6 +1,8 @@
 import type { CatalogSeed, CapabilitySet } from "@2key/dp-spec";
 
-export const DEMO_SERVICE_ID = "demo";
+export const SERVICE_ID = "demo";
+/** @deprecated Prefer SERVICE_ID */
+export const DEMO_SERVICE_ID = SERVICE_ID;
 
 const rootAdminPermissions: CapabilitySet = [
   { action: "admin.invite", scope: {}, delegable: true },
@@ -20,9 +22,9 @@ const machinePermissions: CapabilitySet = [
   { action: "resource.access", scope: { service: ["*"] }, delegable: false },
 ];
 
-/** Example seed — tenants should copy and replace actions for their product. */
-export const DEMO_CATALOG_SEED: CatalogSeed = {
-  serviceId: DEMO_SERVICE_ID,
+/** Example hierarchical-host seed for local/dev. */
+export const CATALOG_SEED: CatalogSeed = {
+  serviceId: SERVICE_ID,
   actions: [
     { action: "admin.invite", description: "Create interim admin identity" },
     { action: "cert.issue", description: "Sign downstream credentials" },
@@ -45,3 +47,6 @@ export const DEMO_CATALOG_SEED: CatalogSeed = {
     { profile: "machine", permissions: machinePermissions },
   ],
 };
+
+/** @deprecated Prefer CATALOG_SEED */
+export const DEMO_CATALOG_SEED = CATALOG_SEED;

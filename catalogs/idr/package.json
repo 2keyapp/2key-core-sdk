@@ -1,8 +1,8 @@
 {
-  "name": "@2key/demo-catalog",
+  "name": "@2key/catalog-idr",
   "version": "0.1.0",
   "private": true,
-  "description": "Product-neutral example CatalogSeed for Delegate Permissions",
+  "description": "Delegate Permissions catalog seed for IDR",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,13 +15,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node -e \"console.log('demo-catalog: no runtime tests')\""
+    "test": "node -e \"console.log('catalog-idr: placeholder')\""
   },
   "dependencies": {
     "@2key/dp-spec": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   },
   "license": "MIT"

@@ -8,15 +8,62 @@ importers:
 
   .: {}
 
-  examples/demo-catalog:
+  catalogs/demo:
     dependencies:
       '@2key/dp-spec':
         specifier: workspace:*
         version: link:../../packages/dp-spec
     devDependencies:
-      tsx:
-        specifier: ^4.19.2
-        version: 4.23.4
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  catalogs/idr:
+    dependencies:
+      '@2key/dp-spec':
+        specifier: workspace:*
+        version: link:../../packages/dp-spec
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  catalogs/mnms:
+    dependencies:
+      '@2key/dp-spec':
+        specifier: workspace:*
+        version: link:../../packages/dp-spec
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  catalogs/os20:
+    dependencies:
+      '@2key/dp-spec':
+        specifier: workspace:*
+        version: link:../../packages/dp-spec
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  catalogs/scomm:
+    dependencies:
+      '@2key/dp-spec':
+        specifier: workspace:*
+        version: link:../../packages/dp-spec
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
+  catalogs/stemsketch:
+    dependencies:
+      '@2key/dp-spec':
+        specifier: workspace:*
+        version: link:../../packages/dp-spec
+    devDependencies:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3

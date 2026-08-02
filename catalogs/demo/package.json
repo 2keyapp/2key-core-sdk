@@ -1,0 +1,27 @@
+{
+  "name": "@2key/catalog-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Delegate Permissions catalog seed for Demo",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node -e \"console.log('catalog-demo: seed package')\""
+  },
+  "dependencies": {
+    "@2key/dp-spec": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "license": "MIT"
+}

@@ -2,7 +2,7 @@
 
 Product-neutral **Delegate Permissions** client SDKs for the hosted multi-tenant Auth + Billing platform.
 
-This repo does **not** belong to any single product tenant. Tenants supply their own action/profile catalogs and PEPs; they depend on these SDKs for credential crypto, Admin/Device flows, and **mTLS presentation**. App transports (WebRTC, signaling, Presence URLs) stay outside this repo behind ports.
+This repo does **not** belong to any single product tenant. Tenants supply catalogs under [`catalogs/`](catalogs/) and PEPs in product repos; they depend on these SDKs for credential crypto, Admin/Device flows, and **mTLS presentation**.
 
 ## Packages
 
@@ -14,7 +14,19 @@ This repo does **not** belong to any single product tenant. Tenants supply their
 | `@2key/dp-ts` | `packages/dp-ts` | TypeScript Admin (+ Device) SDK; re-exports presentation ports |
 | `dp-rust` | `packages/dp-rust` | Rust credential wire types |
 | `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS: `rcgen` leaf + PEM load; `rustls::ClientConfig` via `--features rustls-config` |
-| `@2key/demo-catalog` | `examples/demo-catalog` | Non-product example catalog seed |
+
+## Tenant catalogs
+
+See [`TENANTS.md`](TENANTS.md) and [`catalogs/`](catalogs/).
+
+| Slug | Package |
+|------|---------|
+| `demo` | `@2key/catalog-demo` |
+| `scomm` | `@2key/catalog-scomm` |
+| `idr` | `@2key/catalog-idr` |
+| `os20` | `@2key/catalog-os20` |
+| `stemsketch` | `@2key/catalog-stemsketch` |
+| `mnms` | `@2key/catalog-mnms` |
 
 ## Layering
 
@@ -23,6 +35,7 @@ This repo does **not** belong to any single product tenant. Tenants supply their
 | CapabilityCredential / keys / verify | `dp-spec`, `dp-ts`, `dp-rust` |
 | Prove possession over **TLS client auth** | `dp-mtls`, `dp-rust-mtls` |
 | Present credential for AuthZ (in-band frame) | `dp-presentation` (`createInBandCredentialPresenter`) |
+| Tenant action/profile seeds | `catalogs/<slug>` |
 | Open WebRTC / TCP / product session to PEP | **App** implements `PepConnector` |
 | ICE, signaling, Presence URLs | **App / tenant** — not in this SDK |
 
