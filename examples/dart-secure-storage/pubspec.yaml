@@ -1,0 +1,13 @@
+name: dp_secure_storage_example
+description: >
+  Example app-owned DP identity storage. Core is pure Dart (MemoryKvStore for tests);
+  wire flutter_secure_storage in the host app — see README.
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

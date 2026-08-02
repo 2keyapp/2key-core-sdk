@@ -37,6 +37,7 @@ See [`TENANTS.md`](TENANTS.md) and [`catalogs/`](catalogs/).
 | Present credential for AuthZ (in-band frame) | `dp-presentation` (`createInBandCredentialPresenter`) |
 | Tenant action/profile seeds | `catalogs/<slug>` |
 | Open WebRTC / TCP / product session to PEP | **App** implements `PepConnector` |
+| Persist private JWKs / credentials | **App** — see [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md); Dart example in [`examples/dart-secure-storage`](examples/dart-secure-storage/) |
 | ICE, signaling, Presence URLs | **App / tenant** — not in this SDK |
 
 **AuthN vs AuthZ:** mTLS client cert proves key possession (SKI in URI SAN `urn:dp:ski:…`). CapabilityCredential is sent as the first app frame (`dp.credential.v1`) for AuthZ.
@@ -66,6 +67,12 @@ const connector: PepConnector = {
 };
 await createInBandCredentialPresenter().present(session, identity);
 ```
+
+## Secret storage (app-owned)
+
+`dp-sdk` **never** persists private keys. See [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md).
+
+Dart/Flutter hosts: copy [`examples/dart-secure-storage`](examples/dart-secure-storage/) and wrap [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage). Rust services: OS keyring/DPAPI in the **host**, then inject `DeviceIdentity` into the SDK.
 
 ## Related servers
 
