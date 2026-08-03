@@ -5,6 +5,8 @@ export type {
   CapabilitySet,
   CatalogSeed,
   CredentialKind,
+  DeviceEnrollRequest,
+  DeviceEnrollResult,
   EntityPackage,
   PlatformCosign,
   ProfileDef,

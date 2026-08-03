@@ -26,6 +26,7 @@
     "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@2key/dp-mtls": "workspace:*",
     "@2key/dp-presentation": "workspace:*",
     "@2key/dp-spec": "workspace:*",
     "jose": "^6.0.8"

@@ -2,12 +2,21 @@ import type { CapabilityCredential, PublicJwk } from "@2key/dp-spec";
 
 /**
  * Client-held DP identity: keys stay local; credential is issued by Auth.
+ *
+ * `certPem`/`chainPem` are optional: when a deployment issues CA-signed mTLS
+ * certs (via `@2key/dp-mtls` `signClientCertFromCsr`), the issued cert/chain
+ * is carried here so `materializeMtlsClient` can use it as-is instead of
+ * minting a self-signed dev certificate.
  */
 export type DeviceIdentity = {
   readonly ski: string;
   readonly publicJwk: PublicJwk;
   readonly privateJwk: Record<string, unknown>;
   readonly credential: CapabilityCredential;
+  /** PEM leaf certificate issued by a CA for this device's key, if any. */
+  readonly certPem?: string;
+  /** PEM chain (leaf + intermediates/CA) for `certPem`, if any. */
+  readonly chainPem?: string;
 };
 
 /**
@@ -15,7 +24,10 @@ export type DeviceIdentity = {
  * Structural so presentation ports do not depend on the mTLS package.
  */
 export type MtlsClientMaterial = {
+  /** Cert presented on the wire: the full chain when `chainPem` is set, else the leaf alone. */
   readonly certPem: string;
+  /** PEM chain (leaf + intermediates/CA), when the identity carries a CA-issued cert. */
+  readonly chainPem?: string;
   readonly keyPem: string;
   readonly ski: string;
   readonly credential: CapabilityCredential;

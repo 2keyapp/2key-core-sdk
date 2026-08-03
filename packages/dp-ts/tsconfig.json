@@ -10,6 +10,7 @@
   "exclude": ["src/**/*.test.ts"],
   "references": [
     { "path": "../dp-spec" },
-    { "path": "../dp-presentation" }
+    { "path": "../dp-presentation" },
+    { "path": "../dp-mtls" }
   ]
 }

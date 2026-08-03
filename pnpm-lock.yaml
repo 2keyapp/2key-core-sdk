@@ -79,13 +79,13 @@ importers:
       '@peculiar/x509':
         specifier: ^1.12.3
         version: 1.14.3
+      jose:
+        specifier: ^6.0.8
+        version: 6.2.7
     devDependencies:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.1
-      jose:
-        specifier: ^6.0.8
-        version: 6.2.7
       tsx:
         specifier: ^4.19.2
         version: 4.23.4
@@ -120,6 +120,9 @@ importers:
 
   packages/dp-ts:
     dependencies:
+      '@2key/dp-mtls':
+        specifier: workspace:*
+        version: link:../dp-mtls
       '@2key/dp-presentation':
         specifier: workspace:*
         version: link:../dp-presentation

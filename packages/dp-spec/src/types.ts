@@ -56,6 +56,36 @@ export type CapabilityCredential = {
   readonly signature: string;
 };
 
+/**
+ * Wire request to enroll a device/machine: the caller supplies its public
+ * key (and, for CA-issued mTLS, a PKCS#10 CSR) instead of receiving a
+ * server-generated private key.
+ */
+export type DeviceEnrollRequest = {
+  readonly entityId: string;
+  readonly ski: string;
+  readonly publicJwk: PublicJwk;
+  /** PEM PKCS#10 CSR, present when the deployment issues CA-signed mTLS certs. */
+  readonly csrPem?: string;
+  readonly host?: string;
+};
+
+/**
+ * Wire response for a device/machine enrollment or kickstart call.
+ * `certPem`/`chainPem`/`platformCertCosign` are only present when the
+ * deployment issues CA-signed mTLS certs (else clients fall back to a
+ * self-signed dev cert derived from their own keys).
+ */
+export type DeviceEnrollResult = {
+  readonly credential: CapabilityCredential;
+  /** PEM leaf certificate issued by the deployment's CA, if any. */
+  readonly certPem?: string;
+  /** PEM chain (leaf + intermediates/CA), if any. */
+  readonly chainPem?: string;
+  /** Platform authority co-signature over `certPem`, if any. */
+  readonly platformCertCosign?: PlatformCosign;
+};
+
 export type ActionDef = {
   readonly action: string;
   readonly description?: string;
