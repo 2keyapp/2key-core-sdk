@@ -7,16 +7,24 @@
 | **AuthN (humans)** | Better Auth sessions (admin console, SSO/org as needed) |
 | **AuthN (machines)** | CapabilityCredential + client cert (mTLS / QUIC); platform cosign on Entity Root + Machine |
 | **AuthZ** | `delegate-permissions` CapabilitySets from this catalog (`dns_prefix` FQHN hierarchy) |
-| **Entitlement** | Billing human seats + permanent **machine seats** (`seatBinder`); Presence mux `entitlement_check`; Data Transfer UBB |
-| **PEP** | **Presence** — Target registers over QUIC (`idr-presence-v1`) or WSS fallback; compose capability AND entitlement |
+| **Entitlement** | Billing human seats + permanent **machine seats** (`seatBinder`); Target Agent mints Presence entitlement JWT; Data Transfer UBB |
+| **PEP** | **Presence** — Target registers over QUIC (`idr-presence-v1`) or WSS fallback; JWKS-verify JWT and authorize actions in-process |
 
 ```text
 Target Agent
-  → QUIC/WSS + client cert / credential
+  → POST https://auth.idr.to/api/auth/agent/token
+       (CapabilityCredential + EdDSA PoP)
+  → Auth+Billing mints Presence entitlement JWT (aud=presence)
+  → QUIC/WSS register_target { entitlement_jwt, … }
   → Presence (PEP)
-       ├─ authorize(CapabilitySet, action, { entity, name, … })
-       └─ entitlement_check → Auth+Billing (using_party / paying_party + target_fqhn)
+       ├─ verify JWT via GET /api/auth/jwks
+       ├─ cache claims on TargetSession
+       └─ authorize(register | accept_session | ensure_relay | mint_turn)
 ```
+
+There is **no** Presence↔Billing WSS mux / `entitlement_check` RPC. Relay/TURN still report usage via HTTP `POST /api/v1/usage/report`.
+
+**Remaining (catalog/billing ops):** wire this package into the Billing DP plugin (still demo seed today); production `auth.idr.to` reverse-proxy DNS; re-add remote disconnect, dynamic CA-root push, and domain-alias push on a new channel.
 
 ## Commercial packages
 
@@ -34,7 +42,7 @@ See [BILLING_PACKAGES.md](./BILLING_PACKAGES.md).
 - Scope dimension `name` uses **dns_prefix** (DNS-like attenuation under the entity).
 - **Personal:** single-label host only; same entity → same entity AuthZ.
 - **Enterprise:** full hierarchy; ZA XOR Machine on a name; Machine requires fully-qualified host.
-- Presence registry keys Targets by FQHN; aliases (custom domains) use `domain.alias`.
+- Presence registry keys Targets by FQHN; aliases (custom domains) use `domain.alias` (**alias push to Presence not yet re-implemented** after mux removal).
 
 ## Profiles
 

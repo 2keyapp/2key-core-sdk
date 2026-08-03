@@ -17,10 +17,10 @@ export const SERVICE_ID = "idr";
  * - A name is Zone Authority XOR Machine — never both (enforced at issue / occupancy).
  *
  * Presence PEP flow:
- * Target Agent → QUIC (`idr-presence-v1`) or WSS fallback → Presence with client cert /
- * CapabilityCredential. Presence authorizes CapabilitySet then checks Billing entitlement
- * over the Auth+Billing mux (`entitlement_check`).
- *
+ * Target Agent → POST auth.idr.to `/api/auth/agent/token` (CapabilityCredential PoP)
+ *   → JWT → Presence `register_target.entitlement_jwt` → JWKS verify + cached claims
+ *   for register / ensure_relay / mint_turn / accept_session (no Billing WSS mux).
+ * CapabilityCredential + optional client cert still AuthN the device / mTLS path. *
  * Packages (see BILLING_PACKAGES.md):
  * - Personal: Source mTLS required; same-entity AuthZ; single-label hosts; ≤5 Targets.
  * - Enterprise: Source mTLS; hierarchy / multi-admin / SCIM; ≤5 Targets.
@@ -210,7 +210,7 @@ export const CATALOG_SEED: CatalogSeed = {
   ],
 };
 
-/** Map Presence/Billing entitlement_check.action → catalog action. */
+/** Map Presence entitlement JWT `actions[]` (and legacy mux action names) → catalog action. */
 export const ENTITLEMENT_ACTION_MAP = {
   register: "presence.register",
   accept_session: "session.accept",
