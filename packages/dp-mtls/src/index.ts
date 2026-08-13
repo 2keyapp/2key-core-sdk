@@ -3,8 +3,10 @@ export {
   verifyPlatformCertCosign,
 } from "./cosign.js";
 export {
+  caCertPemFromPrivateJwk,
   createSelfSignedCa,
   generateKeyAndCsr,
+  issueEndorsementFromExistingCert,
   signClientCertFromCsr,
 } from "./csr.js";
 export type {
@@ -12,6 +14,8 @@ export type {
   CreateSelfSignedCaResult,
   GenerateKeyAndCsrParams,
   GenerateKeyAndCsrResult,
+  IssueEndorsementFromExistingCertParams,
+  IssueEndorsementFromExistingCertResult,
   SignClientCertFromCsrParams,
   SignClientCertFromCsrResult,
 } from "./csr.js";

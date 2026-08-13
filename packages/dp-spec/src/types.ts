@@ -72,17 +72,25 @@ export type DeviceEnrollRequest = {
 
 /**
  * Wire response for a device/machine enrollment or kickstart call.
- * `certPem`/`chainPem`/`platformCertCosign` are only present when the
- * deployment issues CA-signed mTLS certs (else clients fall back to a
- * self-signed dev cert derived from their own keys).
+ * `certPem`/`chainPem` are Entity-CA materials; `platformCertPem` /
+ * `platformRootPem` are Platform CA X.509 endorsements issued after Entity
+ * admin signs the leaf. Legacy `platformCertCosign` (detached JWS) may still
+ * appear on older servers.
  */
 export type DeviceEnrollResult = {
   readonly credential: CapabilityCredential;
-  /** PEM leaf certificate issued by the deployment's CA, if any. */
+  /** PEM leaf certificate issued by the Entity CA, if any. */
   readonly certPem?: string;
-  /** PEM chain (leaf + intermediates/CA), if any. */
+  /** PEM chain (leaf + Entity CA), if any. */
   readonly chainPem?: string;
-  /** Platform authority co-signature over `certPem`, if any. */
+  /** Platform CA X.509 endorsement for the same device SPKI. */
+  readonly platformCertPem?: string;
+  /** Platform self-signed Root CA PEM. */
+  readonly platformRootPem?: string;
+  /**
+   * @deprecated Detached JWS cosign — prefer `platformCertPem` /
+   * `platformRootPem`.
+   */
   readonly platformCertCosign?: PlatformCosign;
 };
 

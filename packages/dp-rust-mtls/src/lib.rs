@@ -11,7 +11,7 @@ use std::io::Cursor;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use dp_rust::CapabilityCredential;
-use ed25519_dalek::pkcs8::EncodePrivateKey;
+use ed25519_dalek::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use pkcs8::LineEnding;
 use rand::rngs::OsRng;
@@ -273,7 +273,7 @@ fn to_hex(bytes: &[u8]) -> String {
 
 /// Derive the DP subject key id from a public JWK's `kty`/`crv`/`x`.
 /// Must match `@2key/dp-mtls` `skiFromPublicJwk` byte-for-byte.
-fn ski_from_public_jwk_parts(kty: &str, crv: &str, x: &str) -> String {
+pub fn ski_from_public_jwk_parts(kty: &str, crv: &str, x: &str) -> String {
     let material = format!(
         "{{\"kty\":{},\"crv\":{},\"x\":{}}}",
         serde_json::to_string(kty).unwrap_or_default(),
@@ -325,6 +325,100 @@ fn ca_params(common_name: &str) -> Result<CertificateParams, MtlsError> {
     Ok(params)
 }
 
+/// Ed25519 key material for host SDKs (PEM + JWK). Private key stays on device.
+#[derive(Debug, Clone)]
+pub struct GeneratedEd25519 {
+    pub ski: String,
+    pub private_pem: String,
+    pub public_pem: String,
+    pub public_b64url: String,
+    pub public_jwk: serde_json::Value,
+    pub private_jwk: serde_json::Value,
+}
+
+fn signing_key_from_private_pem(private_pem: &str) -> Result<SigningKey, MtlsError> {
+    SigningKey::from_pkcs8_pem(private_pem.trim())
+        .map_err(|e| MtlsError::Pem(e.to_string()))
+}
+
+fn pem_pair_from_signing_key(signing_key: &SigningKey) -> Result<(String, String), MtlsError> {
+    let private_pem = signing_key
+        .to_pkcs8_pem(LineEnding::LF)
+        .map_err(|e| MtlsError::Pkcs8(e.to_string()))?
+        .to_string();
+    let public_pem = signing_key
+        .verifying_key()
+        .to_public_key_pem(LineEnding::LF)
+        .map_err(|e| MtlsError::Pkcs8(e.to_string()))?;
+    Ok((private_pem, public_pem))
+}
+
+/// Fresh Ed25519 keypair as PEM + JWK (no CSR).
+pub fn generate_ed25519() -> Result<GeneratedEd25519, MtlsError> {
+    let signing_key = SigningKey::generate(&mut OsRng);
+    let (private_jwk, public_jwk, ski) = jwk_pair_from_signing_key(&signing_key);
+    let (private_pem, public_pem) = pem_pair_from_signing_key(&signing_key)?;
+    let public_b64url = public_jwk
+        .get("x")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    Ok(GeneratedEd25519 {
+        ski,
+        private_pem,
+        public_pem,
+        public_b64url,
+        public_jwk,
+        private_jwk,
+    })
+}
+
+/// Build a PKCS#10 CSR for an existing Ed25519 private key (PKCS#8 PEM).
+pub fn build_csr_from_private_pem(
+    private_pem: &str,
+    fqhn: &str,
+) -> Result<String, MtlsError> {
+    let signing_key = signing_key_from_private_pem(private_pem)?;
+    let (_private_jwk, _public_jwk, ski) = jwk_pair_from_signing_key(&signing_key);
+    let key_pair = key_pair_from_signing_key(signing_key)?;
+    let host = fqhn.trim();
+    let cn = if host.is_empty() { "device" } else { host };
+
+    let mut params = base_params(cn)?;
+    params.is_ca = IsCa::NoCa;
+    params.key_usages = vec![
+        KeyUsagePurpose::DigitalSignature,
+        KeyUsagePurpose::KeyAgreement,
+    ];
+    params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
+    params.subject_alt_names = subject_alt_names(
+        &ski,
+        if host.is_empty() { None } else { Some(host) },
+    )?;
+
+    let csr = params
+        .serialize_request(&key_pair)
+        .map_err(|e| MtlsError::Rcgen(e.to_string()))?;
+    csr.pem().map_err(|e| MtlsError::Rcgen(e.to_string()))
+}
+
+/// Ed25519 sign → base64url (no pad) signature.
+pub fn sign_message_b64url(private_pem: &str, message: &[u8]) -> Result<String, MtlsError> {
+    let signing_key = signing_key_from_private_pem(private_pem)?;
+    let sig = signing_key.sign(message);
+    Ok(URL_SAFE_NO_PAD.encode(sig.to_bytes()))
+}
+
+/// Sign UTF-8 JSON bytes → base64url (no pad).
+pub fn sign_json_b64url(private_pem: &str, json: &str) -> Result<String, MtlsError> {
+    sign_message_b64url(private_pem, json.as_bytes())
+}
+
+/// SKI from raw public key (`x` coordinate, base64url).
+pub fn ski_from_public_b64url(public_b64url: &str) -> String {
+    ski_from_public_jwk_parts("OKP", "Ed25519", public_b64url.trim())
+}
+
 /// Generate a device-local Ed25519 keypair and a PKCS#10 CSR for it.
 /// The private key never leaves this function's return value.
 pub fn generate_key_and_csr(
@@ -374,6 +468,26 @@ pub fn create_self_signed_ca(common_name: &str) -> Result<SelfSignedCa, MtlsErro
         ca_cert_pem: cert.pem(),
         common_name: common_name.to_string(),
     })
+}
+
+/// Rebuild a self-signed CA cert PEM from an existing Ed25519 private JWK + CN.
+/// Used when callers store only the CA JWK (no `ca_cert_pem`) and need a chain.
+pub fn ca_cert_pem_from_private_jwk(
+    private_jwk: &serde_json::Value,
+    common_name: &str,
+) -> Result<String, MtlsError> {
+    let signing_key = signing_key_from_jwk(private_jwk)?;
+    let key_pair = key_pair_from_signing_key(signing_key)?;
+    let cert = ca_params(common_name)?
+        .self_signed(&key_pair)
+        .map_err(|e| MtlsError::Rcgen(e.to_string()))?;
+    Ok(cert.pem())
+}
+
+/// SKI of the Ed25519 public key embedded in a PKCS#10 CSR.
+pub fn ski_from_csr_pem(csr_pem: &str) -> Result<String, MtlsError> {
+    let (_tbs, pubkey_raw, _sig) = parse_ed25519_csr(csr_pem)?;
+    Ok(ski_from_public_b64url(&URL_SAFE_NO_PAD.encode(pubkey_raw)))
 }
 
 fn pem_to_der(pem: &str, label: &str) -> Result<Vec<u8>, MtlsError> {
