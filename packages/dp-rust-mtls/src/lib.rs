@@ -12,7 +12,7 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine;
 use dp_rust::CapabilityCredential;
 use ed25519_dalek::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey};
-use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use pkcs8::LineEnding;
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -93,9 +93,7 @@ fn signing_key_from_jwk(private_jwk: &serde_json::Value) -> Result<SigningKey, M
     let bytes = URL_SAFE_NO_PAD
         .decode(d)
         .map_err(|e| MtlsError::Base64(e.to_string()))?;
-    let seed: [u8; 32] = bytes
-        .try_into()
-        .map_err(|_| MtlsError::BadKeyLength)?;
+    let seed: [u8; 32] = bytes.try_into().map_err(|_| MtlsError::BadKeyLength)?;
     Ok(SigningKey::from_bytes(&seed))
 }
 
@@ -149,9 +147,7 @@ fn subject_alt_names(ski: &str, host: Option<&str>) -> Result<Vec<SanType>, Mtls
 /// If `identity.cert_pem` is set (issued by a CA via `sign_client_cert_from_csr`),
 /// it is used as-is (chained with `identity.chain_pem` when present). Otherwise
 /// a self-signed dev certificate is minted from `identity.private_jwk`.
-pub fn materialize_mtls_client(
-    identity: &DeviceIdentity,
-) -> Result<MtlsClientMaterial, MtlsError> {
+pub fn materialize_mtls_client(identity: &DeviceIdentity) -> Result<MtlsClientMaterial, MtlsError> {
     let signing_key = signing_key_from_jwk(&identity.private_jwk)?;
     let key_pem = signing_key
         .to_pkcs8_pem(LineEnding::LF)
@@ -160,7 +156,10 @@ pub fn materialize_mtls_client(
 
     if let Some(cert_pem) = &identity.cert_pem {
         return Ok(MtlsClientMaterial {
-            cert_pem: identity.chain_pem.clone().unwrap_or_else(|| cert_pem.clone()),
+            cert_pem: identity
+                .chain_pem
+                .clone()
+                .unwrap_or_else(|| cert_pem.clone()),
             chain_pem: identity.chain_pem.clone(),
             key_pem,
             ski: identity.ski.clone(),
@@ -271,8 +270,10 @@ fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Derive the DP subject key id from a public JWK's `kty`/`crv`/`x`.
-/// Must match `@2key/dp-mtls` `skiFromPublicJwk` byte-for-byte.
+/// Legacy 32-hex DP SKI (`sha256({"kty","crv","x"})` truncated).
+///
+/// Enrollment against the better-auth plugin uses [`jwk_thumbprint_sha256`]
+/// (RFC 7638). Do not send this value as `subjectSki`.
 pub fn ski_from_public_jwk_parts(kty: &str, crv: &str, x: &str) -> String {
     let material = format!(
         "{{\"kty\":{},\"crv\":{},\"x\":{}}}",
@@ -284,12 +285,46 @@ pub fn ski_from_public_jwk_parts(kty: &str, crv: &str, x: &str) -> String {
     to_hex(&digest)[..32].to_string()
 }
 
+/// RFC 7638 JWK thumbprint (SHA-256, base64url). Matches `jose` `calculateJwkThumbprint`
+/// and better-auth `bindCsrToPublicJwk` — this is the canonical enrollment SKI.
+pub fn jwk_thumbprint_sha256(public_jwk: &serde_json::Value) -> Result<String, MtlsError> {
+    let kty = public_jwk
+        .get("kty")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| MtlsError::Pem("public JWK missing kty".into()))?;
+    let crv = public_jwk
+        .get("crv")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| MtlsError::Pem("public JWK missing crv".into()))?;
+    let x = public_jwk
+        .get("x")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| MtlsError::Pem("public JWK missing x".into()))?;
+    let material = format!(
+        "{{\"crv\":{},\"kty\":{},\"x\":{}}}",
+        serde_json::to_string(crv).unwrap_or_default(),
+        serde_json::to_string(kty).unwrap_or_default(),
+        serde_json::to_string(x).unwrap_or_default(),
+    );
+    let digest = Sha256::digest(material.as_bytes());
+    Ok(URL_SAFE_NO_PAD.encode(digest))
+}
+
+fn canonical_ski_ed25519(x: &str) -> String {
+    jwk_thumbprint_sha256(&serde_json::json!({
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": x,
+    }))
+    .expect("OKP Ed25519 JWK always has kty/crv/x")
+}
+
 fn jwk_pair_from_signing_key(
     signing_key: &SigningKey,
 ) -> (serde_json::Value, serde_json::Value, String) {
     let d = URL_SAFE_NO_PAD.encode(signing_key.to_bytes());
     let x = URL_SAFE_NO_PAD.encode(signing_key.verifying_key().to_bytes());
-    let ski = ski_from_public_jwk_parts("OKP", "Ed25519", &x);
+    let ski = canonical_ski_ed25519(&x);
     let public_jwk = serde_json::json!({
         "kty": "OKP", "crv": "Ed25519", "x": x, "kid": ski, "alg": "EdDSA",
     });
@@ -337,8 +372,7 @@ pub struct GeneratedEd25519 {
 }
 
 fn signing_key_from_private_pem(private_pem: &str) -> Result<SigningKey, MtlsError> {
-    SigningKey::from_pkcs8_pem(private_pem.trim())
-        .map_err(|e| MtlsError::Pem(e.to_string()))
+    SigningKey::from_pkcs8_pem(private_pem.trim()).map_err(|e| MtlsError::Pem(e.to_string()))
 }
 
 fn pem_pair_from_signing_key(signing_key: &SigningKey) -> Result<(String, String), MtlsError> {
@@ -351,6 +385,21 @@ fn pem_pair_from_signing_key(signing_key: &SigningKey) -> Result<(String, String
         .to_public_key_pem(LineEnding::LF)
         .map_err(|e| MtlsError::Pkcs8(e.to_string()))?;
     Ok((private_pem, public_pem))
+}
+
+/// Recover JWK pair + SKI from a PKCS#8 Ed25519 private key PEM.
+pub fn jwks_from_private_pem(
+    private_pem: &str,
+) -> Result<(serde_json::Value, serde_json::Value, String), MtlsError> {
+    let signing_key = signing_key_from_private_pem(private_pem)?;
+    Ok(jwk_pair_from_signing_key(&signing_key))
+}
+
+/// PKCS#8 PEM from an Ed25519 private JWK (`d` / `x`).
+pub fn private_pem_from_jwk(private_jwk: &serde_json::Value) -> Result<String, MtlsError> {
+    let signing_key = signing_key_from_jwk(private_jwk)?;
+    let (private_pem, _public_pem) = pem_pair_from_signing_key(&signing_key)?;
+    Ok(private_pem)
 }
 
 /// Fresh Ed25519 keypair as PEM + JWK (no CSR).
@@ -374,10 +423,7 @@ pub fn generate_ed25519() -> Result<GeneratedEd25519, MtlsError> {
 }
 
 /// Build a PKCS#10 CSR for an existing Ed25519 private key (PKCS#8 PEM).
-pub fn build_csr_from_private_pem(
-    private_pem: &str,
-    fqhn: &str,
-) -> Result<String, MtlsError> {
+pub fn build_csr_from_private_pem(private_pem: &str, fqhn: &str) -> Result<String, MtlsError> {
     let signing_key = signing_key_from_private_pem(private_pem)?;
     let (_private_jwk, _public_jwk, ski) = jwk_pair_from_signing_key(&signing_key);
     let key_pair = key_pair_from_signing_key(signing_key)?;
@@ -391,10 +437,8 @@ pub fn build_csr_from_private_pem(
         KeyUsagePurpose::KeyAgreement,
     ];
     params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ClientAuth];
-    params.subject_alt_names = subject_alt_names(
-        &ski,
-        if host.is_empty() { None } else { Some(host) },
-    )?;
+    params.subject_alt_names =
+        subject_alt_names(&ski, if host.is_empty() { None } else { Some(host) })?;
 
     let csr = params
         .serialize_request(&key_pair)
@@ -414,9 +458,66 @@ pub fn sign_json_b64url(private_pem: &str, json: &str) -> Result<String, MtlsErr
     sign_message_b64url(private_pem, json.as_bytes())
 }
 
-/// SKI from raw public key (`x` coordinate, base64url).
+/// Compact JWS (RFC 7515) with `alg=EdDSA`, matching `jose` `CompactSign`.
+pub fn compact_jws_sign(private_pem: &str, payload: &[u8]) -> Result<String, MtlsError> {
+    let header = URL_SAFE_NO_PAD.encode(b"{\"alg\":\"EdDSA\"}");
+    let payload_b64 = URL_SAFE_NO_PAD.encode(payload);
+    let signing_input = format!("{header}.{payload_b64}");
+    let sig = sign_message_b64url(private_pem, signing_input.as_bytes())?;
+    Ok(format!("{signing_input}.{sig}"))
+}
+
+/// Verify a compact EdDSA JWS and check the payload matches `expected_payload`.
+pub fn compact_jws_verify(
+    public_jwk: &serde_json::Value,
+    jws: &str,
+    expected_payload: &[u8],
+) -> Result<bool, MtlsError> {
+    let mut parts = jws.split('.');
+    let (Some(header_b64), Some(payload_b64), Some(sig_b64), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(MtlsError::Pem("JWS must have three compact parts".into()));
+    };
+    let payload = URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|e| MtlsError::Base64(e.to_string()))?;
+    if payload != expected_payload {
+        return Ok(false);
+    }
+    let _header = URL_SAFE_NO_PAD
+        .decode(header_b64)
+        .map_err(|e| MtlsError::Base64(e.to_string()))?;
+    let sig_bytes = URL_SAFE_NO_PAD
+        .decode(sig_b64)
+        .map_err(|e| MtlsError::Base64(e.to_string()))?;
+    let sig_arr: [u8; 64] = sig_bytes
+        .try_into()
+        .map_err(|_| MtlsError::Pem("JWS signature must be 64 bytes".into()))?;
+    let verifying = verifying_key_from_public_jwk(public_jwk)?;
+    let signing_input = format!("{header_b64}.{payload_b64}");
+    Ok(verifying
+        .verify(signing_input.as_bytes(), &Signature::from_bytes(&sig_arr))
+        .is_ok())
+}
+
+fn verifying_key_from_public_jwk(
+    public_jwk: &serde_json::Value,
+) -> Result<VerifyingKey, MtlsError> {
+    let x = public_jwk
+        .get("x")
+        .and_then(|v| v.as_str())
+        .ok_or(MtlsError::MissingPrivateKey)?;
+    let bytes = URL_SAFE_NO_PAD
+        .decode(x)
+        .map_err(|e| MtlsError::Base64(e.to_string()))?;
+    let arr: [u8; 32] = bytes.try_into().map_err(|_| MtlsError::BadKeyLength)?;
+    VerifyingKey::from_bytes(&arr).map_err(|e| MtlsError::Rcgen(e.to_string()))
+}
+
+/// Canonical SKI (RFC 7638 thumbprint) from raw public key (`x` coordinate, base64url).
 pub fn ski_from_public_b64url(public_b64url: &str) -> String {
-    ski_from_public_jwk_parts("OKP", "Ed25519", public_b64url.trim())
+    canonical_ski_ed25519(public_b64url.trim())
 }
 
 /// Generate a device-local Ed25519 keypair and a PKCS#10 CSR for it.
@@ -488,6 +589,20 @@ pub fn ca_cert_pem_from_private_jwk(
 pub fn ski_from_csr_pem(csr_pem: &str) -> Result<String, MtlsError> {
     let (_tbs, pubkey_raw, _sig) = parse_ed25519_csr(csr_pem)?;
     Ok(ski_from_public_b64url(&URL_SAFE_NO_PAD.encode(pubkey_raw)))
+}
+
+/// Public JWK + SKI from a PKCS#10 CSR (key order matches `@2key/dp-mtls`).
+pub fn public_jwk_from_csr_pem(csr_pem: &str) -> Result<(serde_json::Value, String), MtlsError> {
+    let (_tbs, pubkey_raw, _sig) = parse_ed25519_csr(csr_pem)?;
+    let x = URL_SAFE_NO_PAD.encode(pubkey_raw);
+    let ski = ski_from_public_b64url(&x);
+    let mut jwk = serde_json::Map::new();
+    jwk.insert("kty".into(), serde_json::Value::String("OKP".into()));
+    jwk.insert("crv".into(), serde_json::Value::String("Ed25519".into()));
+    jwk.insert("x".into(), serde_json::Value::String(x));
+    jwk.insert("kid".into(), serde_json::Value::String(ski.clone()));
+    jwk.insert("alg".into(), serde_json::Value::String("EdDSA".into()));
+    Ok((serde_json::Value::Object(jwk), ski))
 }
 
 fn pem_to_der(pem: &str, label: &str) -> Result<Vec<u8>, MtlsError> {
@@ -621,6 +736,81 @@ fn parse_ed25519_csr(csr_pem: &str) -> Result<(Vec<u8>, [u8; 32], [u8; 64]), Mtl
     public_key.copy_from_slice(pk_bytes);
 
     Ok((cri_bytes, public_key, signature))
+}
+
+fn parse_ed25519_signed_cert(cert_pem: &str) -> Result<(Vec<u8>, [u8; 64]), MtlsError> {
+    let der = pem_to_der(cert_pem, "CERTIFICATE")?;
+    let (outer, outer_total) = read_tlv(&der)?;
+    if outer.tag != 0x30 || outer_total != der.len() {
+        return Err(MtlsError::Pem(
+            "certificate is not a single DER SEQUENCE".into(),
+        ));
+    }
+    let body = outer.value;
+    let (tbs, tbs_total) = read_tlv(body)?;
+    if tbs.tag != 0x30 {
+        return Err(MtlsError::Pem("certificate missing tbsCertificate".into()));
+    }
+    let tbs_bytes = body[..tbs_total].to_vec();
+    let after_tbs = &body[tbs_total..];
+    let (_sig_alg, sig_alg_total) = read_tlv(after_tbs)?;
+    let after_sig_alg = &after_tbs[sig_alg_total..];
+    let (sig_bits, _) = read_tlv(after_sig_alg)?;
+    if sig_bits.tag != 0x03 || sig_bits.value.is_empty() || sig_bits.value[0] != 0 {
+        return Err(MtlsError::Pem(
+            "certificate signature is not a byte-aligned BIT STRING".into(),
+        ));
+    }
+    let sig_bytes = &sig_bits.value[1..];
+    if sig_bytes.len() != 64 {
+        return Err(MtlsError::Pem(
+            "certificate signature must be 64 bytes (Ed25519)".into(),
+        ));
+    }
+    let mut signature = [0u8; 64];
+    signature.copy_from_slice(sig_bytes);
+    Ok((tbs_bytes, signature))
+}
+
+fn ed25519_pubkey_from_cert_pem(cert_pem: &str) -> Result<[u8; 32], MtlsError> {
+    let der = pem_to_der(cert_pem, "CERTIFICATE")?;
+    let mut search = 0usize;
+    while search + ED25519_SPKI_ALG.len() < der.len() {
+        let Some(rel) = der[search..]
+            .windows(ED25519_SPKI_ALG.len())
+            .position(|w| w == ED25519_SPKI_ALG)
+        else {
+            break;
+        };
+        let pos = search + rel;
+        let after = &der[pos + ED25519_SPKI_ALG.len()..];
+        if let Ok((pk_bits, _)) = read_tlv(after) {
+            // SPKI key is 32 bytes; the outer signature BIT STRING is 64.
+            if pk_bits.tag == 0x03 && pk_bits.value.len() == 33 && pk_bits.value[0] == 0 {
+                let mut public_key = [0u8; 32];
+                public_key.copy_from_slice(&pk_bits.value[1..]);
+                return Ok(public_key);
+            }
+        }
+        search = pos + 1;
+    }
+    Err(MtlsError::Pem("certificate has no Ed25519 SPKI".into()))
+}
+
+/// HAProxy litmus: `cert_pem` verifies as an Ed25519 signature against `issuer_pem`.
+///
+/// Used for Platform-endorsed leaves against the single Platform Root (`ca-file`).
+pub fn verify_ed25519_cert_against_issuer(
+    cert_pem: &str,
+    issuer_pem: &str,
+) -> Result<bool, MtlsError> {
+    let (tbs, signature) = parse_ed25519_signed_cert(cert_pem)?;
+    let issuer_raw = ed25519_pubkey_from_cert_pem(issuer_pem)?;
+    let verifying = VerifyingKey::from_bytes(&issuer_raw)
+        .map_err(|e| MtlsError::Rcgen(format!("invalid issuer public key: {e}")))?;
+    Ok(verifying
+        .verify_strict(&tbs, &Signature::from_bytes(&signature))
+        .is_ok())
 }
 
 /// Sign a PKCS#10 CSR with a CA private key, producing a DP client leaf cert.
@@ -805,7 +995,11 @@ mod tests {
         let generated = generate_key_and_csr("device-1", Some("db1--acme.example"))
             .expect("generate_key_and_csr");
         assert!(generated.csr_pem.contains("BEGIN CERTIFICATE REQUEST"));
-        assert_eq!(generated.ski.len(), 32);
+        assert_eq!(generated.ski.len(), 43);
+        assert_eq!(
+            generated.ski,
+            jwk_thumbprint_sha256(&generated.public_jwk).expect("thumbprint")
+        );
         assert!(generated.private_jwk.get("d").is_some());
         assert!(generated.public_jwk.get("x").is_some());
     }
@@ -815,7 +1009,7 @@ mod tests {
         let ca = create_self_signed_ca("DP Test CA").expect("create_self_signed_ca");
         assert!(ca.ca_cert_pem.contains("BEGIN CERTIFICATE"));
         assert_eq!(ca.common_name, "DP Test CA");
-        assert_eq!(ca.ski.len(), 32);
+        assert_eq!(ca.ski.len(), 43);
     }
 
     #[test]
@@ -838,6 +1032,14 @@ mod tests {
         assert!(signed.leaf_pem.contains("BEGIN CERTIFICATE"));
         assert!(signed.chain_pem.contains(&signed.leaf_pem));
         assert!(signed.chain_pem.contains(ca.ca_cert_pem.trim()));
+        assert!(
+            verify_ed25519_cert_against_issuer(&signed.leaf_pem, &ca.ca_cert_pem)
+                .expect("leaf verifies against Entity CA")
+        );
+        assert!(
+            verify_ed25519_cert_against_issuer(&ca.ca_cert_pem, &ca.ca_cert_pem)
+                .expect("CA is self-signed")
+        );
 
         let identity = DeviceIdentity {
             ski: device.ski.clone(),
@@ -894,5 +1096,48 @@ mod tests {
             not_after_days: None,
         });
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn jwks_from_private_pem_roundtrips() {
+        let gen = generate_ed25519().expect("generate_ed25519");
+        let (private_jwk, public_jwk, ski) =
+            jwks_from_private_pem(&gen.private_pem).expect("jwks_from_private_pem");
+        assert_eq!(ski, gen.ski);
+        assert_eq!(private_jwk.get("d"), gen.private_jwk.get("d"));
+        assert_eq!(public_jwk.get("x"), gen.public_jwk.get("x"));
+    }
+
+    #[test]
+    fn compact_jws_roundtrip() {
+        let gen = generate_ed25519().expect("generate_ed25519");
+        let payload = br#"{"hello":"world"}"#;
+        let jws = compact_jws_sign(&gen.private_pem, payload).expect("sign");
+        assert_eq!(jws.matches('.').count(), 2);
+        assert!(compact_jws_verify(&gen.public_jwk, &jws, payload).expect("verify"));
+        assert!(!compact_jws_verify(&gen.public_jwk, &jws, b"other").expect("mismatch"));
+    }
+
+    #[test]
+    fn public_jwk_from_csr_matches_generated() {
+        let device = generate_key_and_csr("device-jwk", Some("db1--acme.com")).expect("csr");
+        let (jwk, ski) = public_jwk_from_csr_pem(&device.csr_pem).expect("public_jwk_from_csr");
+        assert_eq!(ski, device.ski);
+        assert_eq!(jwk.get("x"), device.public_jwk.get("x"));
+        let pem = private_pem_from_jwk(&device.private_jwk).expect("pem");
+        assert!(pem.contains("BEGIN PRIVATE KEY"));
+    }
+
+    #[test]
+    fn rfc7638_thumbprint_is_base64url_sha256() {
+        let gen = generate_ed25519().expect("generate_ed25519");
+        let tp = jwk_thumbprint_sha256(&gen.public_jwk).expect("thumbprint");
+        assert_eq!(tp.len(), 43);
+        assert!(!tp.contains('='));
+        assert_eq!(tp, gen.ski);
+        assert_ne!(
+            tp,
+            ski_from_public_jwk_parts("OKP", "Ed25519", gen.public_jwk["x"].as_str().unwrap())
+        );
     }
 }
