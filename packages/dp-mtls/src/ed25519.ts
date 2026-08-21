@@ -1,4 +1,5 @@
-import { createHash, randomBytes, webcrypto } from "node:crypto";
+import { randomBytes, webcrypto } from "node:crypto";
+import { calculateJwkThumbprint } from "jose";
 import type { PublicJwk } from "@2key/dp-spec";
 
 /** WebCrypto algorithm identifier shared by all Ed25519 operations in this package. */
@@ -38,14 +39,13 @@ export function derToPem(label: string, der: Uint8Array): string {
   return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----\n`;
 }
 
-/** Derive the DP subject key id from a public JWK (must match `@2key/dp-ts` `skiFromPublicJwk`). */
-export function skiFromPublicJwk(publicJwk: PublicJwk): string {
-  const material = JSON.stringify({
-    kty: publicJwk.kty,
-    crv: publicJwk.crv,
-    x: publicJwk.x,
-  });
-  return createHash("sha256").update(material).digest("hex").slice(0, 32);
+/**
+ * Canonical SKI: RFC 7638 JWK thumbprint (SHA-256, base64url).
+ * Matches better-auth `bindCsrToPublicJwk` / `jose` `calculateJwkThumbprint`.
+ */
+export async function skiFromPublicJwk(publicJwk: PublicJwk): Promise<string> {
+  const { d: _d, ...pub } = publicJwk as PublicJwk & { d?: unknown };
+  return calculateJwkThumbprint(pub, "sha256");
 }
 
 /** Import an Ed25519 private key from a JWK (`d` seed) as a signing CryptoKey + PKCS8 PEM. */
@@ -103,7 +103,7 @@ export async function generateEd25519KeyPair(): Promise<GeneratedEd25519KeyPair>
     "jwk",
     publicKey,
   )) as PublicJwk;
-  const ski = skiFromPublicJwk(publicJwkRaw);
+  const ski = await skiFromPublicJwk(publicJwkRaw);
   return {
     privateKey,
     publicKey,

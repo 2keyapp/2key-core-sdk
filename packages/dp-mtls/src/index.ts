@@ -1,4 +1,9 @@
 export {
+  ED25519,
+  generateEd25519KeyPair,
+  skiFromPublicJwk,
+} from "./ed25519.js";
+export {
   attachPlatformCertCosign,
   verifyPlatformCertCosign,
 } from "./cosign.js";

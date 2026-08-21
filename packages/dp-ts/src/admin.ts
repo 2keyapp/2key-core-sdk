@@ -7,9 +7,26 @@
  * to generate and return a private key.
  */
 import type {
-  CapabilityCredential,
+  CredentialListResult,
+  CredentialRevokeRequest,
+  CredentialRevokeResult,
+  CredentialStatusResult,
   DeviceEnrollRequest,
   DeviceEnrollResult,
+  EnrollApproveRequest,
+  EnrollCreateResult,
+  EnrollInstantRequest,
+  EnrollListResult,
+  EnrollRejectRequest,
+  EnrollRejectResult,
+  IssueCredentialResult,
+  IssueDelegateRequest,
+  IssueMachineRequest,
+  MachineDecommissionRequest,
+  MachineDecommissionResult,
+  MachineRenewRequest,
+  MachineRenewResult,
+  PlatformRootResult,
   PublicJwk,
 } from "@2key/dp-spec";
 import type { DeviceIdentity } from "@2key/dp-presentation";
@@ -36,13 +53,26 @@ export type KickstartRequest = {
 export function createAdminClient(options: AdminClientOptions) {
   const fetchImpl = options.fetch ?? globalThis.fetch;
 
-  async function post<T>(path: string, body: unknown): Promise<T> {
+  async function request<T>(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+    query?: Record<string, string | undefined>,
+  ): Promise<T> {
+    const url = new URL(path, options.baseURL);
+    if (query) {
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined) url.searchParams.set(key, value);
+      }
+    }
     const headers = new Headers(options.headers);
-    headers.set("content-type", "application/json");
-    const res = await fetchImpl(new URL(path, options.baseURL), {
-      method: "POST",
+    if (body !== undefined) {
+      headers.set("content-type", "application/json");
+    }
+    const res = await fetchImpl(url, {
+      method,
       headers,
-      body: JSON.stringify(body),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -51,28 +81,83 @@ export function createAdminClient(options: AdminClientOptions) {
     return (await res.json()) as T;
   }
 
+  function post<T>(path: string, body: unknown): Promise<T> {
+    return request<T>("POST", path, body);
+  }
+
+  function get<T>(
+    path: string,
+    query?: Record<string, string | undefined>,
+  ): Promise<T> {
+    return request<T>("GET", path, undefined, query);
+  }
+
   return {
     kickstartEntity(body: KickstartRequest): Promise<DeviceEnrollResult> {
       return post("/delegate-permissions/kickstart-entity", body);
     },
-    issueDelegate(body: Record<string, unknown>): Promise<CapabilityCredential> {
+    issueDelegate(body: IssueDelegateRequest): Promise<IssueCredentialResult> {
       return post("/delegate-permissions/issue-delegate", body);
     },
-    /** @deprecated Use `enrollMachine` for typed public-key/CSR enrollment. */
-    issueMachine(body: Record<string, unknown>): Promise<CapabilityCredential> {
+    /** @deprecated Prefer CSR enrollment (`enrollMachine` / `enrollInstant`). */
+    issueMachine(body: IssueMachineRequest): Promise<IssueCredentialResult> {
       return post("/delegate-permissions/issue-machine", body);
     },
-    enrollMachine(body: DeviceEnrollRequest): Promise<DeviceEnrollResult> {
+    enrollMachine(body: DeviceEnrollRequest): Promise<EnrollCreateResult> {
       return post("/delegate-permissions/enroll-create", body);
     },
-    enrollInstant(body: Record<string, unknown>): Promise<DeviceEnrollResult> {
+    enrollInstant(body: EnrollInstantRequest): Promise<DeviceEnrollResult> {
       return post("/delegate-permissions/enroll-instant", body);
     },
-    enrollPull(body: { pullToken: string }): Promise<DeviceEnrollResult & { status: string }> {
+    enrollPull(
+      body: { pullToken: string },
+    ): Promise<DeviceEnrollResult & { status: string }> {
       return post("/delegate-permissions/enroll-pull", body);
     },
-    enrollApprove(body: Record<string, unknown>): Promise<unknown> {
+    enrollApprove(body: EnrollApproveRequest): Promise<unknown> {
       return post("/delegate-permissions/enroll-approve", body);
+    },
+    enrollList(query: {
+      entityId: string;
+      status?: string;
+    }): Promise<EnrollListResult> {
+      return get("/delegate-permissions/enroll-list", {
+        entityId: query.entityId,
+        status: query.status,
+      });
+    },
+    enrollReject(body: EnrollRejectRequest): Promise<EnrollRejectResult> {
+      return post("/delegate-permissions/enroll-reject", body);
+    },
+    credentialRevoke(
+      body: CredentialRevokeRequest,
+    ): Promise<CredentialRevokeResult> {
+      return post("/delegate-permissions/credential-revoke", body);
+    },
+    credentialStatus(query: { ski: string }): Promise<CredentialStatusResult> {
+      return get("/delegate-permissions/credential-status", {
+        ski: query.ski,
+      });
+    },
+    credentialList(query: {
+      entityId: string;
+      status?: string;
+    }): Promise<CredentialListResult> {
+      return get("/delegate-permissions/credential-list", {
+        entityId: query.entityId,
+        status: query.status,
+      });
+    },
+    machineDecommission(
+      body: MachineDecommissionRequest,
+    ): Promise<MachineDecommissionResult> {
+      return post("/delegate-permissions/machine-decommission", body);
+    },
+    machineRenew(body: MachineRenewRequest): Promise<MachineRenewResult> {
+      return post("/delegate-permissions/machine-renew", body);
+    },
+    platformRoot(): Promise<PlatformRootResult> {
+      return get("/delegate-permissions/platform-root");
     },
   };
 }
@@ -80,7 +165,7 @@ export function createAdminClient(options: AdminClientOptions) {
 export type AdminClient = ReturnType<typeof createAdminClient>;
 
 export type EnrollClientOptions = AdminClientOptions & {
-  /** Wire path to POST the enrollment request to. Default `/delegate-permissions/enroll-machine`. */
+  /** Wire path to POST the enrollment request to. Default `/delegate-permissions/enroll-create`. */
   readonly enrollPath?: string;
 };
 
@@ -90,30 +175,39 @@ export type EnrollDeviceParams = {
   readonly commonName?: string;
   /** Optional DNS SAN / routing host for the device (e.g. `db1--acme.example`). */
   readonly host?: string;
+  readonly kind?: DeviceEnrollRequest["kind"];
 };
 
 export type EnrollDeviceResult = {
-  /** Ready to hand to `@2key/dp-mtls` `materializeMtlsClient`. */
-  readonly identity: DeviceIdentity;
-  /** Raw server response, in case callers need `platformCertCosign` etc. */
-  readonly result: DeviceEnrollResult;
+  readonly ski: string;
+  readonly publicJwk: PublicJwk;
+  readonly privateJwk: Record<string, unknown>;
+  readonly csrPem: string;
+  /** Server enroll-create (or custom path) response. */
+  readonly enrollment: EnrollCreateResult;
+  /**
+   * Present when the server returned a signed credential on the same call
+   * (instant enroll or a custom `enrollPath`).
+   */
+  readonly identity?: DeviceIdentity;
 };
 
 /**
  * Device-side enrollment client: generates an Ed25519 keypair + CSR
  * on-device, sends the public key/CSR to the admin/auth server, and returns
- * a `DeviceIdentity` combining the local private key with the server-issued
- * credential (and CA cert/chain, if the deployment issues one).
+ * local key material plus the pending enroll-create response.
  *
- * The private key never leaves this process.
+ * The private key never leaves this process. Pull the signed credential
+ * later with `createAdminClient().enrollPull({ pullToken })`.
  */
 export function createEnrollClient(options: EnrollClientOptions) {
   const admin = createAdminClient(options);
-  const enrollPath = options.enrollPath ?? "/delegate-permissions/enroll-machine";
+  const enrollPath =
+    options.enrollPath ?? "/delegate-permissions/enroll-create";
 
-  async function post(body: unknown): Promise<DeviceEnrollResult> {
-    if (enrollPath === "/delegate-permissions/enroll-machine") {
-      return admin.enrollMachine(body as DeviceEnrollRequest);
+  async function postEnroll(body: DeviceEnrollRequest): Promise<EnrollCreateResult> {
+    if (enrollPath === "/delegate-permissions/enroll-create") {
+      return admin.enrollMachine(body);
     }
     const headers = new Headers(options.headers);
     headers.set("content-type", "application/json");
@@ -127,7 +221,7 @@ export function createEnrollClient(options: EnrollClientOptions) {
       const text = await res.text();
       throw new Error(`Device enroll request failed (${res.status}): ${text}`);
     }
-    return (await res.json()) as DeviceEnrollResult;
+    return (await res.json()) as EnrollCreateResult;
   }
 
   return {
@@ -139,24 +233,34 @@ export function createEnrollClient(options: EnrollClientOptions) {
 
       const request: DeviceEnrollRequest = {
         entityId: params.entityId,
-        ski,
+        subjectSki: ski,
         publicJwk,
         csrPem,
         ...(params.host !== undefined ? { host: params.host } : {}),
+        ...(params.kind !== undefined ? { kind: params.kind } : {}),
       };
 
-      const result = await post(request);
+      const enrollment = await postEnroll(request);
+      const maybeCredential = (enrollment as unknown as Partial<DeviceEnrollResult>)
+        .credential;
 
-      const identity: DeviceIdentity = {
+      return {
         ski,
         publicJwk,
         privateJwk,
-        credential: result.credential,
-        ...(result.certPem !== undefined ? { certPem: result.certPem } : {}),
-        ...(result.chainPem !== undefined ? { chainPem: result.chainPem } : {}),
+        csrPem,
+        enrollment,
+        ...(maybeCredential
+          ? {
+              identity: {
+                ski,
+                publicJwk,
+                privateJwk,
+                credential: maybeCredential,
+              },
+            }
+          : {}),
       };
-
-      return { identity, result };
     },
   };
 }

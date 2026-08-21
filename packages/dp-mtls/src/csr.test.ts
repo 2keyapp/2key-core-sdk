@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { calculateJwkThumbprint } from "jose";
 import type { DeviceIdentity } from "@2key/dp-presentation";
 import { attachPlatformCertCosign, verifyPlatformCertCosign } from "./cosign.js";
 import {
@@ -43,7 +44,8 @@ describe("generateKeyAndCsr", () => {
     assert.equal(typeof privateJwk.d, "string");
     assert.equal(typeof publicJwk.x, "string");
     assert.equal(typeof ski, "string");
-    assert.equal(ski.length, 32);
+    assert.equal(ski.length, 43);
+    assert.equal(ski, await calculateJwkThumbprint(publicJwk, "sha256"));
   });
 });
 
