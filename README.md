@@ -14,6 +14,46 @@ This repo does **not** belong to any single product tenant. Tenants supply catal
 | `@2key/dp-ts` | `packages/dp-ts` | TypeScript Admin (+ Device) SDK; re-exports presentation ports |
 | `dp-rust` | `packages/dp-rust` | Rust credential wire types |
 | `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS: `rcgen` leaf + PEM load; `rustls::ClientConfig` via `--features rustls-config` |
+| `dp-rust-sdk` | `packages/dp-rust-sdk` | HTTP client + enrollment/lifecycle against `delegate-permissions` |
+| `dp-cli` | `packages/dp-cli` | Same CLI for every tenant; brand via env, then rename the binary |
+
+## Rust CLI (branded binary)
+
+Same source for every product. Bake the backend and product name into the exe, then copy/rename it (`idr`, `acme`, …). See [`.env.example`](.env.example) for required vs optional variables.
+
+**Required at product build**
+
+| Variable | Example | Role |
+|----------|---------|------|
+| `DP_BACKEND_URL` | `https://api.idr.to/api/auth` | Better Auth base (no trailing slash) |
+| `DP_PRODUCT_NAME` | `idr` | Help text, user-agent, default `~/.{name}` |
+
+**Optional at product build**
+
+| Variable | Default | Role |
+|----------|---------|------|
+| `DP_SEPARATOR` | `--` | Machine identity `{name}{sep}{entity}` |
+
+**Runtime only** (never compiled in; also `--token` / `--state-dir` / `--backend-url`)
+
+| Variable | Required when | Role |
+|----------|----------------|------|
+| `DP_AUTH_TOKEN` | `org`, admin, enroll-instant | Optional override. Prefer `idr auth login` (`$DP_STATE_DIR/session`). Cookie `better-auth.session_token=...` or Bearer |
+| `DP_STATE_DIR` | optional | Keys + `state.json`. Default `~/.${DP_PRODUCT_NAME}` |
+| `DP_BACKEND_URL` / `DP_PRODUCT_NAME` / `DP_SEPARATOR` | optional | Override compiled defaults |
+
+Cargo does not load `.env`. Export the vars (or put build vars in `.cargo/config.toml`):
+
+```bash
+set -a && source .env && set +a
+DP_BACKEND_URL="https://api.idr.to/api/auth" DP_PRODUCT_NAME="idr" \
+  cargo build --release -p dp-cli --bin dp-cli
+cp target/release/dp-cli idr
+```
+
+Product CLI (`register`, `csr`, later `signup` / `auth login`): [docs/CLI-PRODUCT.md](docs/CLI-PRODUCT.md).
+
+What to run for each use case (plugin tests, `idr init`/`register --local`, openssl, delegations, HAProxy handshake): [docs/TEST-USECASES.md](docs/TEST-USECASES.md).
 
 ## Tenant catalogs
 

@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["packages/dp-rust", "packages/dp-rust-mtls"]
+members = [
+    "packages/dp-rust",
+    "packages/dp-rust-mtls",
+    "packages/dp-rust-sdk",
+    "packages/dp-cli",
+]
 
 [workspace.package]
 version = "0.1.0"

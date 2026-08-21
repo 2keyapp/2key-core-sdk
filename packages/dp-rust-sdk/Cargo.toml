@@ -1,0 +1,25 @@
+[package]
+name = "dp-rust-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "HTTP client SDK for Delegate Permissions machine certificate lifecycle"
+repository.workspace = true
+
+[dependencies]
+dp-rust = { path = "../dp-rust" }
+dp-rust-mtls = { path = "../dp-rust-mtls" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "time"] }
+directories = "5"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+wiremock = "0.6"
