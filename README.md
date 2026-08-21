@@ -15,7 +15,7 @@ This repo does **not** belong to any single product tenant. Tenants supply catal
 | `dp-rust` | `packages/dp-rust` | Rust credential wire types |
 | `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS: `rcgen` leaf + PEM load; `rustls::ClientConfig` via `--features rustls-config` |
 | `dp-rust-sdk` | `packages/dp-rust-sdk` | HTTP client + enrollment/lifecycle against `delegate-permissions` |
-| `dp-cli` | `packages/dp-cli` | Same CLI for every tenant; brand via env, then rename the binary |
+| `dp-cli` | `packages/dp-cli` | Lifecycle CLI (`idr` / `dp-cli`) + resident agent (`idr-agent`) |
 
 ## Rust CLI (branded binary)
 

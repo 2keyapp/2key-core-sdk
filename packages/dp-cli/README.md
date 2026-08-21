@@ -29,8 +29,9 @@ idr invite --org <entity>
 # fleet: idr invite --org <entity> --uses 50
 # until expiry: idr invite --org <entity> --unlimited
 idr register --invite <token> --name laptop1
-# or pull enroll:
-idr register --org <entity> --name laptop1
+# localhost (Entity CA on this host):
+idr register --local --org <entity> --name laptop1
+# same as: idr gen --org <entity> --name laptop1
 idr-agent                          # stays in this terminal until ctrl-c
 idr-agent --keep                   # background service (--detach is the same)
 

@@ -1,11 +1,21 @@
 # App-owned secret storage (policy)
 
-**`dp-sdk` does not persist secrets.** Packages accept in-memory `DeviceIdentity` / JWKs / PEMs only.
+**Library packages do not persist secrets.** `dp-ts`, `dp-mtls`, `dp-rust`, `dp-rust-mtls`, and `dp-rust-sdk` accept in-memory `DeviceIdentity` / JWKs / PEMs only.
+
+The **CLI and agent are the host** for a laptop or server: they write secrets under `$DP_STATE_DIR` (default `~/.{product}`):
+
+| Path | What |
+|------|------|
+| `identity/machine.key` | Device Ed25519 (0600). Never sent. |
+| `admin/<entity>/entity-ca.key` | Entity CA (signup / `org init`) |
+| `session` | Human Better Auth cookie or Bearer (not a machine key) |
+
+Do not treat `$DP_STATE_DIR` as a shared vault with a Flutter app. See the table below for embed/service hosts.
 
 | Host | Recommended store | Notes |
 |------|-------------------|--------|
 | Flutter / Dart embed or Flutter CLI | [`flutter_secure_storage`](https://github.com/mogol/flutter_secure_storage) (or compatible forks) | See [`examples/dart-secure-storage`](../examples/dart-secure-storage/) |
-| Rust Windows/Linux/macOS **service** | OS keyring / DPAPI via host adapter | Live **outside** `dp-rust`; inject identity at process start |
+| Rust Windows/Linux/macOS **service** | OS keyring / DPAPI, **or** this repo’s CLI file store | `idr-agent` uses `$DP_STATE_DIR`. Other hosts stay outside `dp-rust` and inject identity at start |
 | Tests | In-memory map | Never log private JWKs |
 
 ## Why not inside the SDK?

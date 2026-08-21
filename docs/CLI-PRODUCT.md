@@ -65,7 +65,7 @@ Two layers, same SDK:
 | **Product** | Humans, `gh`-like | `auth login`, `signup`, `register`, `csr`, `csr approve 2` |
 | **Power** | Tests, scripts, this repo | `org init`, `machine enroll`, `admin machine approve <id>` |
 
-Power commands stay. Product commands are thin wrappers (Phase 1) then real flows (Phases 2–3). Convenience `init` / `gen` stay for the localhost litmus (`TEST-USECASES.md`).
+Power commands stay. Product commands wrap the same SDK (`register` = enroll, `csr` = numbered inbox, `signup` = kickstart). Convenience `init` / `gen` stay for the localhost litmus ([TEST-USECASES.md](./TEST-USECASES.md)).
 
 ### Wire names vs display names
 
@@ -372,7 +372,7 @@ idr machine whoami
 Localhost:
 
 ```bash
-idr org init acme.com          # or later: idr signup --domain acme.com
+idr signup --domain acme.com   # or: idr org init acme.com
 idr register --local --org acme.com --name laptop1
 # → enrolled (enroll-instant)
 ```
@@ -381,7 +381,7 @@ Power surface still works: `machine enroll`, `admin machine approve <id>`.
 
 ---
 
-## 8. What we will not do in Phase 1–3
+## 8. What we will not do
 
 | Idea | Reason |
 |------|--------|

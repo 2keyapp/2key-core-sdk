@@ -206,7 +206,7 @@ DP_STATE_DIR="$DEVICE_DIR" "$IDR" machine whoami
 # expect: laptop--acme.com
 ```
 
-Push-invite (same split, device infers org/name from the token):
+Push-invite (same split: token binds the **org**; the device still chooses `--name`):
 
 ```bash
 DP_STATE_DIR="$ADMIN_DIR" "$IDR" invite --org acme.com

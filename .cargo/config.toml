@@ -1,0 +1,6 @@
+# Local compile defaults. Product releases override these (see .env.example).
+# Runtime env vars (DP_BACKEND_URL, etc.) always win.
+[env]
+DP_BACKEND_URL = "http://localhost:3000/api/auth"
+DP_PRODUCT_NAME = "dp"
+DP_SEPARATOR = "--"
