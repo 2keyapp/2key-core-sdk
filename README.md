@@ -47,11 +47,11 @@ Cargo does not load `.env`. Export the vars (or put build vars in `.cargo/config
 ```bash
 set -a && source .env && set +a
 DP_BACKEND_URL="https://api.idr.to/api/auth" DP_PRODUCT_NAME="idr" \
-  cargo build --release -p dp-cli --bin dp-cli
-cp target/release/dp-cli idr
+  cargo build --release -p dp-cli --bin dp-cli --bin idr --bin idr-agent
+# or: cp target/release/dp-cli idr
 ```
 
-Product CLI (`register`, `csr`, later `signup` / `auth login`): [docs/CLI-PRODUCT.md](docs/CLI-PRODUCT.md).
+Product CLI (`auth login`, `signup`, `register`, `csr`, `invite`) plus power commands (`org`, `machine`, `init` / `gen`) and the resident agent (`idr-agent`): [docs/CLI-PRODUCT.md](docs/CLI-PRODUCT.md).
 
 What to run for each use case (plugin tests, `idr init`/`register --local`, openssl, delegations, HAProxy handshake): [docs/TEST-USECASES.md](docs/TEST-USECASES.md).
 
@@ -110,9 +110,9 @@ await createInBandCredentialPresenter().present(session, identity);
 
 ## Secret storage (app-owned)
 
-`dp-sdk` **never** persists private keys. See [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md).
+Library packages (`dp-ts`, `dp-mtls`, `dp-rust`, `dp-rust-mtls`, `dp-rust-sdk`) **do not** persist private keys. The **CLI / agent** is the host: it writes keys under `$DP_STATE_DIR` (`identity/machine.key`, `admin/<entity>/`, `session`). See [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md).
 
-Dart/Flutter hosts: copy [`examples/dart-secure-storage`](examples/dart-secure-storage/) and wrap [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage). Rust services: OS keyring/DPAPI in the **host**, then inject `DeviceIdentity` into the SDK.
+Dart/Flutter hosts: copy [`examples/dart-secure-storage`](examples/dart-secure-storage/) and wrap [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage). Other Rust services: OS keyring/DPAPI in the **host**, then inject `DeviceIdentity` into the SDK.
 
 ## Related servers
 
