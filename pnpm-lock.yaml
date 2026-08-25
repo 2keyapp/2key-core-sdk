@@ -68,6 +68,18 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  packages/dp-authorize:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.4
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   packages/dp-mtls:
     dependencies:
       '@2key/dp-presentation':
@@ -120,6 +132,9 @@ importers:
 
   packages/dp-ts:
     dependencies:
+      '@2key/dp-authorize':
+        specifier: workspace:*
+        version: link:../dp-authorize
       '@2key/dp-mtls':
         specifier: workspace:*
         version: link:../dp-mtls

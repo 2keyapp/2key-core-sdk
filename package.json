@@ -7,7 +7,7 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
-    "test:rust": "cargo test -p two-key-core",
+    "test:rust": "cargo test -p two-key-core -p dp-rust",
     "build:cli": "cargo build -p two-key-cli --release"
   },
   "engines": {

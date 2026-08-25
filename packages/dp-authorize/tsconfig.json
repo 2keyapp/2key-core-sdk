@@ -7,11 +7,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"],
-  "references": [
-    { "path": "../dp-authorize" },
-    { "path": "../dp-spec" },
-    { "path": "../dp-presentation" },
-    { "path": "../dp-mtls" }
-  ]
+  "exclude": ["src/**/*.test.ts"]
 }

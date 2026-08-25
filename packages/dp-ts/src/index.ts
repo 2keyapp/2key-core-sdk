@@ -1,3 +1,20 @@
+export {
+  actionCovers,
+  assertAuthorized,
+  assertSubset,
+  authorize,
+  dnsPrefixSubset,
+  enforceLocally,
+  expandProfile,
+} from "@2key/dp-authorize";
+export type {
+  AuthorizeResult,
+  EnforceInput,
+  Resource,
+  ScopeMap,
+  SubsetResult,
+} from "@2key/dp-authorize";
+
 export { createAdminClient, createEnrollClient } from "./admin.js";
 export type {
   AdminClient,

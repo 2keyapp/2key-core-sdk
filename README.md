@@ -35,6 +35,7 @@ pnpm install && pnpm test
 | Package | Path | Role |
 |---------|------|------|
 | `@2key/dp-spec` | `packages/dp-spec` | Shared types + JSON Schema for CapabilityCredentials |
+| `@2key/dp-authorize` | `packages/dp-authorize` | Pure AuthZ algebra (`authorize` / subset) + client `enforceLocally` |
 | `@2key/dp-presentation` | `packages/dp-presentation` | Ports: `PepSession`, `PepConnector`, `CredentialPresenter`, `DeviceIdentity` |
 | `@2key/dp-mtls` | `packages/dp-mtls` | Node mTLS: self-signed client cert + `tls.ConnectionOptions` |
 | `@2key/dp-ts` | `packages/dp-ts` | TypeScript Admin (+ Device) SDK |
@@ -82,6 +83,8 @@ DP_BACKEND_URL="https://api.idr.to/api/auth" DP_PRODUCT_NAME="idr" \
 Product CLI (`auth login`, `signup`, `register`, `csr`, `invite`) plus power commands (`org`, `machine`, `init` / `gen`) and the resident agent (`idr-agent`): [docs/CLI-PRODUCT.md](docs/CLI-PRODUCT.md).
 
 What to run for each use case (plugin tests, `idr init`/`register --local`, openssl, delegations, HAProxy handshake): [docs/TEST-USECASES.md](docs/TEST-USECASES.md).
+
+Dual client/server AuthZ: [docs/DP-AUTHZ.md](docs/DP-AUTHZ.md).
 
 ## Tenant catalogs
 

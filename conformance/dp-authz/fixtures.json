@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "description": "Shared DP AuthZ conformance vectors — run in TS (@2key/dp-authorize) and Rust (dp-rust)",
+  "catalog": {
+    "serviceId": "demo",
+    "generation": 1,
+    "actions": [
+      { "action": "cert.issue" },
+      { "action": "machine.bind" },
+      { "action": "machine.connect" },
+      { "action": "zone.delegate" },
+      { "action": "entity.read" },
+      { "action": "acl.service" }
+    ],
+    "scopeDimensions": [
+      { "dimension": "entity", "algebra": "exact" },
+      { "dimension": "name", "algebra": "dns_prefix" },
+      { "dimension": "service", "algebra": "set" }
+    ]
+  },
+  "actionCovers": [
+    { "granted": "machine.bind", "requested": "machine.bind", "ok": true },
+    { "granted": "machine.bind", "requested": "machine.connect", "ok": false },
+    { "granted": "cert.*", "requested": "cert.issue", "ok": true },
+    { "granted": "cert.*", "requested": "cert", "ok": true },
+    { "granted": "cert.*", "requested": "certificate.issue", "ok": false }
+  ],
+  "dnsPrefixSubset": [
+    { "child": "db1.zone6.us-east", "parent": "", "ok": true },
+    { "child": "us-east", "parent": "us-east", "ok": true },
+    { "child": "zone6.us-east", "parent": "us-east", "ok": true },
+    { "child": "us-east", "parent": "zone6.us-east", "ok": false },
+    { "child": "eu-west", "parent": "us-east", "ok": false }
+  ],
+  "authorize": [
+    {
+      "name": "allows dns_prefix match",
+      "grants": [
+        {
+          "action": "machine.connect",
+          "scope": { "name": "zone6.us-east", "entity": "amazon.com" },
+          "delegable": false
+        }
+      ],
+      "action": "machine.connect",
+      "resource": { "name": "db1.zone6.us-east", "entity": "amazon.com" },
+      "ok": true
+    },
+    {
+      "name": "denies outside zone",
+      "grants": [
+        {
+          "action": "machine.connect",
+          "scope": { "name": "zone6.us-east", "entity": "amazon.com" },
+          "delegable": false
+        }
+      ],
+      "action": "machine.connect",
+      "resource": { "name": "db1.other.us-east", "entity": "amazon.com" },
+      "ok": false,
+      "code": "NOT_AUTHORIZED"
+    },
+    {
+      "name": "set algebra allow ssh",
+      "grants": [
+        {
+          "action": "acl.service",
+          "scope": { "service": ["ssh", "http"] },
+          "delegable": false
+        }
+      ],
+      "action": "acl.service",
+      "resource": { "service": "ssh" },
+      "ok": true
+    },
+    {
+      "name": "set algebra deny rdp",
+      "grants": [
+        {
+          "action": "acl.service",
+          "scope": { "service": ["ssh", "http"] },
+          "delegable": false
+        }
+      ],
+      "action": "acl.service",
+      "resource": { "service": "rdp" },
+      "ok": false,
+      "code": "NOT_AUTHORIZED"
+    }
+  ],
+  "assertSubset": [
+    {
+      "name": "attenuated child ok",
+      "parent": [
+        {
+          "action": "cert.*",
+          "scope": { "name": "us-east", "entity": "amazon.com" },
+          "delegable": true
+        }
+      ],
+      "child": [
+        {
+          "action": "cert.issue",
+          "scope": { "name": "zone6.us-east", "entity": "amazon.com" },
+          "delegable": false
+        }
+      ],
+      "ok": true
+    },
+    {
+      "name": "broader name rejected",
+      "parent": [
+        {
+          "action": "machine.bind",
+          "scope": { "name": "us-east" },
+          "delegable": true
+        }
+      ],
+      "child": [
+        {
+          "action": "machine.bind",
+          "scope": { "name": "" },
+          "delegable": true
+        }
+      ],
+      "ok": false,
+      "code": "SUBSET_VIOLATION"
+    }
+  ]
+}

@@ -1,6 +1,16 @@
 //! Device/Agent SDK types for Delegate Permissions (Option B credentials).
 //! Crypto (Ed25519 / JWS) will land in a follow-up; this crate establishes the
 //! shared wire types with `@2key/dp-spec` / Better Auth.
+//!
+//! Pure AuthZ algebra lives in [`authorize`] — mirrors `@2key/dp-authorize`
+//! and `conformance/dp-authz/fixtures.json`.
+
+pub mod authorize;
+
+pub use authorize::{
+    action_covers, assert_subset, authorize, dns_prefix_subset, ActionDef, AuthzOutcome,
+    Catalog, ScopeDimensionDef,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -91,6 +101,6 @@ mod tests {
         assert_eq!(cred.kind, CredentialKind::Machine);
         assert_eq!(cred.host.as_deref(), Some("db1--acme.example"));
         let out = serde_json::to_string(&cred).unwrap();
-        assert!(out.contains("\"platformCosign\"") == false);
+        assert!(!out.contains("\"platformCosign\""));
     }
 }
