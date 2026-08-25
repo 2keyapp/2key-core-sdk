@@ -29,14 +29,12 @@ jobs:
             cli_name: two-key-linux-x86_64
             lib_name: libtwo_key_core-linux-x86_64.so
             lib_src: libtwo_key_core.so
-          # Skipped: cross aarch64-linux needs openssl sysroot (openssl-sys via pkg-config).
-          # Re-enable with cross OpenSSL deps or a native aarch64 runner.
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-gnu
-          #   cli_name: two-key-linux-aarch64
-          #   lib_name: libtwo_key_core-linux-aarch64.so
-          #   lib_src: libtwo_key_core.so
-          #   cross: true
+          # Native ARM runner — avoids cross + openssl-sys sysroot issues.
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            cli_name: two-key-linux-aarch64
+            lib_name: libtwo_key_core-linux-aarch64.so
+            lib_src: libtwo_key_core.so
           - os: macos-latest
             target: x86_64-apple-darwin
             cli_name: two-key-macos-x86_64
