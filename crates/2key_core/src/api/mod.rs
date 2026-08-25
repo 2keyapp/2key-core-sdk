@@ -3,5 +3,5 @@
 mod client;
 
 pub use client::{
-    ApiClient, BootstrapResult, FetchPlansQuery, SyncResult,
+    ApiClient, BootstrapResult, FetchPlansQuery, SyncResult, UsageReportRequest, UsageReportResult,
 };

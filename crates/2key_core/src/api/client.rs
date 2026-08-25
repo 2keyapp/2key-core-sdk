@@ -1,4 +1,4 @@
-//! Minimal HTTP client for license, bootstrap, plans.
+//! Minimal HTTP client for license, bootstrap, plans, usage.
 
 use serde_json::Value;
 
@@ -39,6 +39,52 @@ pub struct FetchPlansQuery {
     pub billing_interval: Option<String>,
     /// Include inactive.
     pub include_inactive: bool,
+}
+
+/// Body for `POST /api/v1/usage/report`.
+#[derive(Debug, Clone)]
+pub struct UsageReportRequest {
+    /// Meter key.
+    pub meter_key: String,
+    /// Using party id.
+    pub using_party: String,
+    /// Paying party id.
+    pub paying_party: String,
+    /// Idempotency key.
+    pub idempotency_key: String,
+    /// Reporter type (default relay).
+    pub reporter_type: Option<String>,
+    /// Optional target FQHN.
+    pub target_fqhn: Option<String>,
+    /// Bytes to target.
+    pub bytes_to_target: Option<serde_json::Value>,
+    /// Bytes from target.
+    pub bytes_from_target: Option<serde_json::Value>,
+    /// Quantity.
+    pub quantity: Option<serde_json::Value>,
+    /// Reporter id.
+    pub reporter_id: Option<String>,
+    /// Session id.
+    pub session_id: Option<String>,
+    /// Dimensions object.
+    pub dimensions: Option<serde_json::Value>,
+    /// Reported-at timestamp.
+    pub reported_at: Option<String>,
+}
+
+/// Result of usage report ingest.
+#[derive(Debug, Clone)]
+pub struct UsageReportResult {
+    /// Accepted by server.
+    pub accepted: bool,
+    /// Duplicate idempotency key.
+    pub duplicate: bool,
+    /// Remaining balance if returned.
+    pub remaining: Option<String>,
+    /// Balance generation if returned.
+    pub generation: Option<i32>,
+    /// Optional actions (e.g. disable_turn).
+    pub actions: Vec<String>,
 }
 
 /// Blocking HTTP client for SDK routes.
@@ -216,6 +262,88 @@ impl ApiClient {
             })?;
 
         list.iter().map(Plan::from_value).collect()
+    }
+
+    /// POST `/api/v1/usage/report` (reporter token — not end-user JWT).
+    pub fn report_usage(
+        &self,
+        reporter_token: &str,
+        body: &UsageReportRequest,
+    ) -> Result<UsageReportResult> {
+        if reporter_token.trim().is_empty() {
+            return Err(TwoKeyError::new(
+                ErrorCode::Unauthorized,
+                "Reporter token is required.",
+            ));
+        }
+        let url = format!("{}api/v1/usage/report", self.origin_slash());
+        let payload = serde_json::json!({
+            "meter_key": body.meter_key,
+            "using_party": body.using_party,
+            "paying_party": body.paying_party,
+            "idempotency_key": body.idempotency_key,
+            "reporter_type": body.reporter_type.as_deref().unwrap_or("relay"),
+            "target_fqhn": body.target_fqhn,
+            "bytes_to_target": body.bytes_to_target,
+            "bytes_from_target": body.bytes_from_target,
+            "quantity": body.quantity,
+            "reporter_id": body.reporter_id,
+            "session_id": body.session_id,
+            "dimensions": body.dimensions.clone().unwrap_or_else(|| serde_json::json!({})),
+            "reported_at": body.reported_at,
+        });
+
+        let res = self
+            .agent
+            .post(&url)
+            .set("Authorization", &Self::bearer(reporter_token))
+            .set("Content-Type", "application/json")
+            .send_json(payload)
+            .map_err(map_transport)?;
+
+        let status = res.status();
+        if status == 401 || status == 403 {
+            return Err(http_status_error(status, "report_usage"));
+        }
+        if status != 200 {
+            return Err(http_status_error(status, "report_usage"));
+        }
+        let body: Value = res.into_json().map_err(|e| {
+            TwoKeyError::new(ErrorCode::InvalidResponse, "Invalid usage report response")
+                .with_detail(e.to_string())
+        })?;
+        let data = unwrap_data(&body);
+        Ok(UsageReportResult {
+            accepted: data
+                .get("accepted")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true),
+            duplicate: data
+                .get("duplicate")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+            remaining: data
+                .get("remaining")
+                .and_then(|v| {
+                    v.as_str()
+                        .map(|s| s.to_string())
+                        .or_else(|| v.as_i64().map(|n| n.to_string()))
+                }),
+            generation: data.get("generation").and_then(|v| {
+                v.as_i64()
+                    .map(|n| n as i32)
+                    .or_else(|| v.as_u64().map(|n| n as i32))
+            }),
+            actions: data
+                .get("actions")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
     }
 }
 

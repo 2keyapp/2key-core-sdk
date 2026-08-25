@@ -1,6 +1,6 @@
 //! Stable facade intended for FFI wrappers (FRB / UniFFI).
 
-use crate::api::{BootstrapResult, FetchPlansQuery};
+use crate::api::{BootstrapResult, FetchPlansQuery, UsageReportRequest, UsageReportResult};
 use crate::config::SdkConfig;
 use crate::error::Result;
 use crate::license::VerifyOutcome;
@@ -73,6 +73,15 @@ impl<S: Storage, C: Clock> TwoKeyClient<S, C> {
     /// Public plan catalog.
     pub fn fetch_plans(&self, query: FetchPlansQuery) -> Result<Vec<Plan>> {
         self.sessions.api().fetch_plans(&query)
+    }
+
+    /// Report usage (reporter / M2M token).
+    pub fn report_usage(
+        &self,
+        reporter_token: &str,
+        body: &UsageReportRequest,
+    ) -> Result<UsageReportResult> {
+        self.sessions.api().report_usage(reporter_token, body)
     }
 
     /// Whether background poll is recommended.
