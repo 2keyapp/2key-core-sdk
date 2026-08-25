@@ -1,8 +1,10 @@
-[workspace]
+﻿[workspace]
 resolver = "2"
 members = [
     "packages/dp-rust",
     "packages/dp-rust-mtls",
+    "packages/dp-rust-sdk",
+    "packages/dp-cli",
     "crates/2key_core",
     "crates/2key_cli",
 ]

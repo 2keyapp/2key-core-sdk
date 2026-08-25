@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { DeviceIdentity } from "@2key/dp-presentation";
-import { generateKeyPair, exportJWK } from "jose";
-import { createHash } from "node:crypto";
+import { calculateJwkThumbprint, generateKeyPair, exportJWK } from "jose";
 import {
   extractSkiFromCertPem,
   materializeMtlsClient,
@@ -17,16 +16,7 @@ async function testIdentity(): Promise<DeviceIdentity> {
   });
   const publicJwk = (await exportJWK(publicKey)) as DeviceIdentity["publicJwk"];
   const privateJwk = (await exportJWK(privateKey)) as Record<string, unknown>;
-  const ski = createHash("sha256")
-    .update(
-      JSON.stringify({
-        kty: publicJwk.kty,
-        crv: publicJwk.crv,
-        x: publicJwk.x,
-      }),
-    )
-    .digest("hex")
-    .slice(0, 32);
+  const ski = await calculateJwkThumbprint(publicJwk, "sha256");
 
   return {
     ski,

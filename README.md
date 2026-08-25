@@ -1,4 +1,4 @@
-# 2key-core-sdk
+﻿# 2key-core-sdk
 
 **Private** platform core for 2key Auth + Billing.
 
@@ -8,7 +8,7 @@
 | **Billing CLI** | `crates/2key_cli` (`two-key`) | Desktop CLI (Windows / macOS / Linux) built and released as binaries |
 | **Delegate Permissions** | `packages/*`, `catalogs/*` | CapabilityCredentials, mTLS presentation, tenant catalogs |
 
-Public consumers never depend on this repo’s Rust source. They use:
+Public consumers never depend on this repo's Rust source. They use:
 
 - Prebuilt **`two-key` CLI** and **`libtwo_key_core`** artifacts from Releases
 - Language wrappers in public [`2key-billing-sdks`](https://github.com/2keyapp/2key-billing-sdks)
@@ -39,9 +39,49 @@ pnpm install && pnpm test
 | `@2key/dp-mtls` | `packages/dp-mtls` | Node mTLS: self-signed client cert + `tls.ConnectionOptions` |
 | `@2key/dp-ts` | `packages/dp-ts` | TypeScript Admin (+ Device) SDK |
 | `dp-rust` | `packages/dp-rust` | Rust credential wire types |
-| `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS helpers |
+| `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS: `rcgen` leaf + PEM load; `rustls::ClientConfig` via `--features rustls-config` |
+| `dp-rust-sdk` | `packages/dp-rust-sdk` | HTTP client + enrollment/lifecycle against `delegate-permissions` |
+| `dp-cli` | `packages/dp-cli` | Lifecycle CLI (`idr` / `dp-cli`) + resident agent (`idr-agent`) |
 
-> **Naming:** This repository is **`2key-core-sdk`** everywhere (docs, remotes, CI). Historical “dp-sdk” refers only to the Delegate Permissions *packages* under `packages/dp-*`, not a separate product repo.
+> **Naming:** This repository is **`2key-core-sdk`** everywhere (docs, remotes, CI). Historical "dp-sdk" refers only to the Delegate Permissions *packages* under `packages/dp-*`, not a separate product repo.
+
+## Rust CLI (branded binary)
+
+Same source for every product. Bake the backend and product name into the exe, then copy/rename it (`idr`, `acme`, …). See [`.env.example`](.env.example) for required vs optional variables.
+
+**Required at product build**
+
+| Variable | Example | Role |
+|----------|---------|------|
+| `DP_BACKEND_URL` | `https://api.idr.to/api/auth` | Better Auth base (no trailing slash) |
+| `DP_PRODUCT_NAME` | `idr` | Help text, user-agent, default `~/.{name}` |
+
+**Optional at product build**
+
+| Variable | Default | Role |
+|----------|---------|------|
+| `DP_SEPARATOR` | `--` | Machine identity `{name}{sep}{entity}` |
+
+**Runtime only** (never compiled in; also `--token` / `--state-dir` / `--backend-url`)
+
+| Variable | Required when | Role |
+|----------|----------------|------|
+| `DP_AUTH_TOKEN` | `org`, admin, enroll-instant | Optional override. Prefer `idr auth login` (`$DP_STATE_DIR/session`). Cookie `better-auth.session_token=...` or Bearer |
+| `DP_STATE_DIR` | optional | Keys + `state.json`. Default `~/.${DP_PRODUCT_NAME}` |
+| `DP_BACKEND_URL` / `DP_PRODUCT_NAME` / `DP_SEPARATOR` | optional | Override compiled defaults |
+
+Cargo does not load `.env`. Export the vars (or put build vars in `.cargo/config.toml`):
+
+```bash
+set -a && source .env && set +a
+DP_BACKEND_URL="https://api.idr.to/api/auth" DP_PRODUCT_NAME="idr" \
+  cargo build --release -p dp-cli --bin dp-cli --bin idr --bin idr-agent
+# or: cp target/release/dp-cli idr
+```
+
+Product CLI (`auth login`, `signup`, `register`, `csr`, `invite`) plus power commands (`org`, `machine`, `init` / `gen`) and the resident agent (`idr-agent`): [docs/CLI-PRODUCT.md](docs/CLI-PRODUCT.md).
+
+What to run for each use case (plugin tests, `idr init`/`register --local`, openssl, delegations, HAProxy handshake): [docs/TEST-USECASES.md](docs/TEST-USECASES.md).
 
 ## Tenant catalogs
 
@@ -59,7 +99,3 @@ See [`TENANTS.md`](TENANTS.md) and [`catalogs/`](catalogs/).
 ## Secret storage
 
 Delegate Permissions packages **never** persist private keys. See [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md).
-
-## License
-
-MIT (packages). Billing core release binaries are distributed under the terms set by 2key for ISV SDK packages — source remains private.

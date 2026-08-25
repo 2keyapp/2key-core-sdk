@@ -1,5 +1,13 @@
-export { createAdminClient } from "./admin.js";
-export type { AdminClient, AdminClientOptions, KickstartRequest } from "./admin.js";
+export { createAdminClient, createEnrollClient } from "./admin.js";
+export type {
+  AdminClient,
+  AdminClientOptions,
+  EnrollClient,
+  EnrollClientOptions,
+  EnrollDeviceParams,
+  EnrollDeviceResult,
+  KickstartRequest,
+} from "./admin.js";
 export {
   attachPlatformCosign,
   verifyCredentialSignature,
@@ -27,5 +35,16 @@ export type {
   CapabilityCredential,
   CapabilitySet,
   CatalogSeed,
+  CredentialListResult,
+  CredentialRevokeResult,
+  CredentialStatusResult,
+  DeviceEnrollRequest,
+  DeviceEnrollResult,
+  EnrollCreateResult,
+  IssueCredentialResult,
+  IssueDelegateRequest,
+  IssueMachineRequest,
+  MachineDecommissionResult,
+  MachineRenewResult,
   PlatformCosign,
 } from "@2key/dp-spec";

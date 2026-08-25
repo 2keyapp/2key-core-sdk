@@ -20,11 +20,11 @@
   "dependencies": {
     "@2key/dp-presentation": "workspace:*",
     "@2key/dp-spec": "workspace:*",
-    "@peculiar/x509": "^1.12.3"
+    "@peculiar/x509": "^1.12.3",
+    "jose": "^6.0.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "jose": "^6.0.8",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   },

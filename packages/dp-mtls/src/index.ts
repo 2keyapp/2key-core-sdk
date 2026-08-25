@@ -1,4 +1,30 @@
 export {
+  ED25519,
+  generateEd25519KeyPair,
+  skiFromPublicJwk,
+} from "./ed25519.js";
+export {
+  attachPlatformCertCosign,
+  verifyPlatformCertCosign,
+} from "./cosign.js";
+export {
+  caCertPemFromPrivateJwk,
+  createSelfSignedCa,
+  generateKeyAndCsr,
+  issueEndorsementFromExistingCert,
+  signClientCertFromCsr,
+} from "./csr.js";
+export type {
+  CreateSelfSignedCaParams,
+  CreateSelfSignedCaResult,
+  GenerateKeyAndCsrParams,
+  GenerateKeyAndCsrResult,
+  IssueEndorsementFromExistingCertParams,
+  IssueEndorsementFromExistingCertResult,
+  SignClientCertFromCsrParams,
+  SignClientCertFromCsrResult,
+} from "./csr.js";
+export {
   extractSkiFromCertPem,
   materializeMtlsClient,
   skiSanUri,
@@ -9,3 +35,8 @@ export type {
   DeviceIdentity,
   MtlsClientMaterial,
 } from "@2key/dp-presentation";
+export type {
+  DeviceEnrollRequest,
+  DeviceEnrollResult,
+  PlatformCosign,
+} from "@2key/dp-spec";

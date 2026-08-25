@@ -2,79 +2,45 @@ import type { DeviceIdentity, MtlsClientMaterial } from "@2key/dp-presentation";
 import * as x509 from "@peculiar/x509";
 import { webcrypto } from "node:crypto";
 import type { ConnectionOptions } from "node:tls";
-
-const ED25519 = { name: "Ed25519" } as const;
+import {
+  ED25519,
+  importEd25519PrivateKeyFromJwk,
+  importEd25519PublicKeyFromJwk,
+} from "./ed25519.js";
 
 /** URI SAN value encoding the DP subject key id. */
 export function skiSanUri(ski: string): string {
   return `urn:dp:ski:${ski}`;
 }
 
-function base64UrlToBytes(value: string): Uint8Array {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
-  return Uint8Array.from(Buffer.from(padded + pad, "base64"));
-}
-
-/** PKCS#8 PrivateKeyInfo for Ed25519 (RFC 8410). */
-function ed25519Pkcs8DerFromSeed(seed: Uint8Array): Uint8Array {
-  if (seed.byteLength !== 32) {
-    throw new Error("Ed25519 private seed must be 32 bytes");
-  }
-  const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
-  return Buffer.concat([prefix, Buffer.from(seed)]);
-}
-
-function derToPem(label: string, der: Uint8Array): string {
-  const b64 = Buffer.from(der).toString("base64");
-  const lines = b64.match(/.{1,64}/g) ?? [];
-  return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----\n`;
-}
-
 /**
- * Build a self-signed Ed25519 client cert from DeviceIdentity.
+ * Build an mTLS client material from DeviceIdentity.
  * AuthN = TLS client cert (SKI in SAN); AuthZ = CapabilityCredential via presenter.
+ *
+ * If `identity.certPem` is set (issued by a CA via `signClientCertFromCsr`), it is
+ * used as-is (chained with `identity.chainPem` when present). Otherwise a
+ * self-signed dev certificate is minted from `identity.privateJwk` / `publicJwk`.
  */
 export async function materializeMtlsClient(
   identity: DeviceIdentity,
 ): Promise<MtlsClientMaterial> {
   x509.cryptoProvider.set(webcrypto as Crypto);
 
-  const d = identity.privateJwk.d;
-  if (typeof d !== "string") {
-    throw new Error("privateJwk.d (Ed25519 seed) is required");
-  }
-  const seed = base64UrlToBytes(d);
-  const pkcs8Der = ed25519Pkcs8DerFromSeed(seed);
-  const keyPem = derToPem("PRIVATE KEY", pkcs8Der);
-
-  const privateKey = await webcrypto.subtle.importKey(
-    "pkcs8",
-    pkcs8Der,
-    ED25519,
-    true,
-    ["sign"],
+  const { privateKey, keyPem } = await importEd25519PrivateKeyFromJwk(
+    identity.privateJwk,
   );
 
-  let publicKey: CryptoKey;
-  if (typeof identity.publicJwk.x === "string") {
-    // SPKI for Ed25519: 12-byte header + 32-byte raw public key
-    const raw = base64UrlToBytes(identity.publicJwk.x);
-    if (raw.byteLength !== 32) {
-      throw new Error("Ed25519 public key must be 32 bytes");
-    }
-    const spkiPrefix = Buffer.from("302a300506032b6570032100", "hex");
-    const spki = Buffer.concat([spkiPrefix, Buffer.from(raw)]);
-    publicKey = await webcrypto.subtle.importKey(
-      "spki",
-      spki,
-      ED25519,
-      true,
-      ["verify"],
-    );
-  } else {
-    throw new Error("publicJwk.x is required");
+  if (typeof identity.certPem === "string" && identity.certPem.length > 0) {
+    return {
+      certPem: identity.chainPem ?? identity.certPem,
+      ...(identity.chainPem !== undefined ? { chainPem: identity.chainPem } : {}),
+      keyPem,
+      ski: identity.ski,
+      credential: identity.credential,
+    };
   }
+
+  const publicKey = await importEd25519PublicKeyFromJwk(identity.publicJwk);
 
   const notBefore = new Date();
   const notAfter = new Date(notBefore.getTime() + 365 * 24 * 60 * 60 * 1000);

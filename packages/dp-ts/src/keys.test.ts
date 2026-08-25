@@ -7,6 +7,7 @@ describe("generateEd25519KeyPair", () => {
     const kp = await generateEd25519KeyPair();
     assert.equal(typeof kp.ski, "string");
     assert.ok(kp.ski.length >= 16);
+    assert.equal(kp.ski.length, 43);
     assert.equal(kp.publicJwk.kty, "OKP");
     assert.equal(kp.publicJwk.crv, "Ed25519");
     assert.ok(kp.privateJwk.d);
