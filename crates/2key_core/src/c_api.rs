@@ -1,0 +1,82 @@
+//! C ABI for Dart `dart:ffi` / future FRB. Keep JSON-string oriented.
+
+use crate::ffi::{
+    ffi_error_codes, ffi_normalize_api_base_url, ffi_validate_config_json, ffi_verify_license_json,
+};
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+
+unsafe fn cstr_to_string(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        return None;
+    }
+    CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_owned())
+}
+
+fn to_c_string(s: String) -> *mut c_char {
+    CString::new(s.replace('\0', "")).map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut())
+}
+
+/// Free a string returned by this ABI.
+///
+/// # Safety
+/// `ptr` must be null or a pointer previously returned by this crate's C API.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_string_free(ptr: *mut c_char) {
+    if ptr.is_null() {
+        return;
+    }
+    drop(CString::from_raw(ptr));
+}
+
+/// Normalize API base URL. Caller must `two_key_string_free` the result.
+///
+/// # Safety
+/// `input` must be a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_normalize_api_base_url(input: *const c_char) -> *mut c_char {
+    let Some(s) = cstr_to_string(input) else {
+        return std::ptr::null_mut();
+    };
+    to_c_string(ffi_normalize_api_base_url(s))
+}
+
+/// Verify license JWT → JSON. Caller must free the result.
+///
+/// # Safety
+/// `pem` and `jwt` must be valid NUL-terminated C strings.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_verify_license_json(
+    pem: *const c_char,
+    jwt: *const c_char,
+) -> *mut c_char {
+    let Some(pem) = cstr_to_string(pem) else {
+        return to_c_string(r#"{"ok":false,"code":"config","message":"null pem"}"#.into());
+    };
+    let Some(jwt) = cstr_to_string(jwt) else {
+        return to_c_string(r#"{"ok":false,"code":"license_malformed","message":"null jwt"}"#.into());
+    };
+    to_c_string(ffi_verify_license_json(pem, jwt))
+}
+
+/// Validate config → JSON. Caller must free the result.
+///
+/// # Safety
+/// All pointers must be valid NUL-terminated C strings.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_validate_config_json(
+    api_base_url: *const c_char,
+    public_key_pem: *const c_char,
+    storage_prefix: *const c_char,
+) -> *mut c_char {
+    let api = cstr_to_string(api_base_url).unwrap_or_default();
+    let pem = cstr_to_string(public_key_pem).unwrap_or_default();
+    let prefix = cstr_to_string(storage_prefix).unwrap_or_default();
+    to_c_string(ffi_validate_config_json(api, pem, prefix))
+}
+
+/// Comma-separated error codes. Caller must free the result.
+#[no_mangle]
+pub extern "C" fn two_key_error_codes() -> *mut c_char {
+    to_c_string(ffi_error_codes().join(","))
+}

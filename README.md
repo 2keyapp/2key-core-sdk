@@ -1,84 +1,65 @@
-# dp-sdk
+# 2key-core-sdk
 
-Product-neutral **Delegate Permissions** client SDKs for the hosted multi-tenant Auth + Billing platform.
+**Private** platform core for 2key Auth + Billing.
 
-This repo does **not** belong to any single product tenant. Tenants supply catalogs under [`catalogs/`](catalogs/) and PEPs in product repos; they depend on these SDKs for credential crypto, Admin/Device flows, and **mTLS presentation**.
+| Concern | Location | Role |
+|---------|----------|------|
+| **Billing native core** | `crates/2key_core` (`two-key-core`) | License verify/sync, session orchestration, FFI/C ABI — **binary-private**; never published as source to ISVs |
+| **Billing CLI** | `crates/2key_cli` (`two-key`) | Desktop CLI (Windows / macOS / Linux) built and released as binaries |
+| **Delegate Permissions** | `packages/*`, `catalogs/*` | CapabilityCredentials, mTLS presentation, tenant catalogs |
 
-## Packages
+Public consumers never depend on this repo’s Rust source. They use:
+
+- Prebuilt **`two-key` CLI** and **`libtwo_key_core`** artifacts from Releases
+- Language wrappers in public [`2key-billing-sdks`](https://github.com/2keyapp/2key-billing-sdks)
+
+## Binary Private Core
+
+1. Develop and test `two-key-core` / `two-key-cli` **here**.
+2. CI releases tagged assets (`two-key-{os}-{arch}`, `libtwo_key_core-*`) with checksums.
+3. Public `2key-billing-sdks` **downloads** those artifacts (see `core-binaries.lock.json` there) — no `cargo` path to this source for ISVs.
+
+## Quick start (internal)
+
+```bash
+# Billing core + CLI
+cargo test -p two-key-core
+cargo run -p two-key-cli -- version
+
+# Delegate Permissions (TS)
+pnpm install && pnpm test
+```
+
+## Packages (Delegate Permissions)
 
 | Package | Path | Role |
 |---------|------|------|
 | `@2key/dp-spec` | `packages/dp-spec` | Shared types + JSON Schema for CapabilityCredentials |
 | `@2key/dp-presentation` | `packages/dp-presentation` | Ports: `PepSession`, `PepConnector`, `CredentialPresenter`, `DeviceIdentity` |
 | `@2key/dp-mtls` | `packages/dp-mtls` | Node mTLS: self-signed client cert + `tls.ConnectionOptions` |
-| `@2key/dp-ts` | `packages/dp-ts` | TypeScript Admin (+ Device) SDK; re-exports presentation ports |
+| `@2key/dp-ts` | `packages/dp-ts` | TypeScript Admin (+ Device) SDK |
 | `dp-rust` | `packages/dp-rust` | Rust credential wire types |
-| `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS: `rcgen` leaf + PEM load; `rustls::ClientConfig` via `--features rustls-config` |
+| `dp-rust-mtls` | `packages/dp-rust-mtls` | Rust mTLS helpers |
+
+> **Naming:** This repository is **`2key-core-sdk`** everywhere (docs, remotes, CI). Historical “dp-sdk” refers only to the Delegate Permissions *packages* under `packages/dp-*`, not a separate product repo.
 
 ## Tenant catalogs
 
 See [`TENANTS.md`](TENANTS.md) and [`catalogs/`](catalogs/).
 
-| Slug | Package |
-|------|---------|
-| `demo` | `@2key/catalog-demo` |
-| `scomm` | `@2key/catalog-scomm` |
-| `idr` | `@2key/catalog-idr` |
-| `os20` | `@2key/catalog-os20` |
-| `stemsketch` | `@2key/catalog-stemsketch` |
-| `mnms` | `@2key/catalog-mnms` |
+## Related repos
 
-## Layering
+| Repo | Visibility | Role |
+|------|------------|------|
+| `2keyapp/2key-core-sdk` | **Private** | This repo — core source + DP |
+| `2keyapp/2key-billing` | Private | Auth + Billing server |
+| `2keyapp/2key-billing-sdks` | **Public** | CLI install docs, language wrappers, OpenAPI |
+| `2keyapp/better-auth` | Public fork | Auth engine (sync from upstream) |
 
-| Concern | Owner |
-|---------|--------|
-| CapabilityCredential / keys / verify | `dp-spec`, `dp-ts`, `dp-rust` |
-| Prove possession over **TLS client auth** | `dp-mtls`, `dp-rust-mtls` |
-| Present credential for AuthZ (in-band frame) | `dp-presentation` (`createInBandCredentialPresenter`) |
-| Tenant action/profile seeds | `catalogs/<slug>` |
-| Open WebRTC / TCP / product session to PEP | **App** implements `PepConnector` |
-| Persist private JWKs / credentials | **App** — see [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md); Dart example in [`examples/dart-secure-storage`](examples/dart-secure-storage/) |
-| ICE, signaling, Presence URLs | **App / tenant** — not in this SDK |
+## Secret storage
 
-**AuthN vs AuthZ:** mTLS client cert proves key possession (SKI in URI SAN `urn:dp:ski:…`). CapabilityCredential is sent as the first app frame (`dp.credential.v1`) for AuthZ.
-
-```text
-DeviceIdentity
-    ├─ materializeMtlsClient()  →  MtlsClientMaterial  →  app PepConnector (TCP+TLS)
-    └─ createInBandCredentialPresenter().present(session)
-         (also used alone when the app transport is WebRTC / no client certs)
-```
-
-### App WebRTC adapter (sketch — not shipped)
-
-```ts
-// In the product SDK, not dp-sdk:
-const connector: PepConnector = {
-  async connect({ entityId, host }) {
-    const pc = new RTCPeerConnection(/* app ICE */);
-    const dc = pc.createDataChannel("dp");
-    // ... product signaling ...
-    return {
-      send: async (frame) => { dc.send(frame); },
-      onFrame: (handler) => { dc.onmessage = (e) => handler(new Uint8Array(e.data)); return () => {}; },
-      close: async () => { dc.close(); pc.close(); },
-    };
-  },
-};
-await createInBandCredentialPresenter().present(session, identity);
-```
-
-## Secret storage (app-owned)
-
-`dp-sdk` **never** persists private keys. See [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md).
-
-Dart/Flutter hosts: copy [`examples/dart-secure-storage`](examples/dart-secure-storage/) and wrap [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage). Rust services: OS keyring/DPAPI in the **host**, then inject `DeviceIdentity` into the SDK.
-
-## Related servers
-
-- Better Auth fork — `delegate-permissions` plugin (AuthN + AuthZ algebra + PKI issue)
-- Billing — human seats + permanent machine seats (`seatBinder`)
+Delegate Permissions packages **never** persist private keys. See [docs/SECRET_STORAGE.md](docs/SECRET_STORAGE.md).
 
 ## License
 
-MIT
+MIT (packages). Billing core release binaries are distributed under the terms set by 2key for ISV SDK packages — source remains private.

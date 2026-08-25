@@ -1,0 +1,27 @@
+[package]
+name = "two-key-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "2key Billing native client core (private — distribute as binary only)"
+readme = "README.md"
+
+[lib]
+name = "two_key_core"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ureq = { workspace = true }
+base64 = { workspace = true }
+p256 = { workspace = true }
+
+[dev-dependencies]
+p256 = { workspace = true }
+rand_core = { workspace = true }
+sha2 = "0.10"

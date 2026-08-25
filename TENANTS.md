@@ -27,4 +27,4 @@ Canonical notes: [`catalogs/idr/README.md`](catalogs/idr/README.md).
 
 - Better Auth fork — generic `delegate-permissions` (no product seeds in core)
 - Billing — one merchant DB per deployment; wire `seatBinder` when machine seats apply
-- Product / agent / web SDKs — tenant-owned; depend on `@2key/catalog-<slug>` + `dp-sdk`
+- Product / agent / web SDKs — tenant-owned; depend on `@2key/catalog-<slug>` + packages from **`2key-core-sdk`** (`@2key/dp-*`)

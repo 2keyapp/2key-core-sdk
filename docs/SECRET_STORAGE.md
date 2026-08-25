@@ -1,6 +1,6 @@
 # App-owned secret storage (policy)
 
-**`dp-sdk` does not persist secrets.** Packages accept in-memory `DeviceIdentity` / JWKs / PEMs only.
+**`2key-core-sdk` Delegate Permissions packages do not persist secrets.** They accept in-memory `DeviceIdentity` / JWKs / PEMs only.
 
 | Host | Recommended store | Notes |
 |------|-------------------|--------|
@@ -33,7 +33,7 @@ Example prefix: `idr.dp`.
 ```text
 App SecretStore.load()
   → DeviceIdentity (in memory)
-  → dp-sdk materializeMtlsClient / presenter
+  → 2key-core-sdk materializeMtlsClient / presenter
   → app PepConnector → PEP
 ```
 

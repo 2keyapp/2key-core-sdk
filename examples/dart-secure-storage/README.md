@@ -1,8 +1,8 @@
 # Example: Dart DP secret store (`flutter_secure_storage`)
 
-App-owned persistence for Delegate Permissions machine identity. **Not** part of the published `dp-sdk` packages.
+App-owned persistence for Delegate Permissions machine identity. **Not** part of the published `@2key/dp-*` packages in **`2key-core-sdk`**.
 
-Core in `lib/` is **pure Dart** (inject any [StringKvStore]). Production Flutter apps wrap [flutter_secure_storage](https://pub.dev/packages/flutter_secure_storage) — same idea as `billing_dart_sdk`.
+Core in `lib/` is **pure Dart** (inject any [StringKvStore]). Production Flutter apps wrap [flutter_secure_storage](https://pub.dev/packages/flutter_secure_storage) — same idea as `two_key_dart_sdk`.
 
 ## Flutter host adapter
 
@@ -64,6 +64,6 @@ Uses `MemoryKvStore`.
 
 ## Process boundaries
 
-Flutter secure storage is **not** shared with a separate Rust service. Embed the agent, or use an OS keyring in the service host (outside `dp-sdk`).
+Flutter secure storage is **not** shared with a separate Rust service. Embed the agent, or use an OS keyring in the service host (outside `2key-core-sdk` packages).
 
 See [docs/SECRET_STORAGE.md](../../docs/SECRET_STORAGE.md).

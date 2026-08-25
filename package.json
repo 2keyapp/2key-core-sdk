@@ -1,12 +1,14 @@
 {
-  "name": "dp-sdk",
+  "name": "2key-core-sdk",
   "private": true,
   "version": "0.1.0",
-  "description": "Delegate Permissions client SDKs (spec, TypeScript, Rust)",
+  "description": "2key private core SDK: billing native core (two-key-core) + Delegate Permissions clients",
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "test:rust": "cargo test -p two-key-core",
+    "build:cli": "cargo build -p two-key-cli --release"
   },
   "engines": {
     "node": ">=20",

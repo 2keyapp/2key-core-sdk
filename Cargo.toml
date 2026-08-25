@@ -1,9 +1,27 @@
 [workspace]
 resolver = "2"
-members = ["packages/dp-rust", "packages/dp-rust-mtls"]
+members = [
+    "packages/dp-rust",
+    "packages/dp-rust-mtls",
+    "crates/2key_core",
+    "crates/2key_cli",
+]
+default-members = ["crates/2key_core", "crates/2key_cli"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/2keyapp/dp-sdk"
+repository = "https://github.com/2keyapp/2key-core-sdk"
+rust-version = "1.75"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+# native-tls avoids `ring` (no clang required on Windows ARM hosts).
+ureq = { version = "2", default-features = false, features = ["json", "native-tls"] }
+base64 = "0.22"
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+keyring = "3"

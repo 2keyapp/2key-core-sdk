@@ -1,0 +1,16 @@
+[package]
+name = "two-key-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "2key Billing CLI (Windows / macOS / Linux) — released as binary from 2key-core-sdk"
+
+[[bin]]
+name = "two-key"
+path = "src/main.rs"
+
+[dependencies]
+two-key-core = { path = "../2key_core" }
+keyring = { workspace = true }

@@ -1,0 +1,45 @@
+{
+  "claims": {
+    "payload_version": 1,
+    "iss": "https://billing.example.com",
+    "aud": "billing-license",
+    "iat": 1700000000,
+    "exp": 4102444800,
+    "paying_party": {
+      "id": "pp_test_1",
+      "identity_provider": "google",
+      "identity_subject": "sub-123",
+      "billing_email": "billing@example.com",
+      "organization_name": "Example Org"
+    },
+    "subscriptions": [
+      {
+        "subscription_id": "sub_1",
+        "plan_id": "plan_base",
+        "product_id": "prod_mail",
+        "plan_name": "Base",
+        "product_name": "Mail",
+        "subscription_status": "active",
+        "valid_from": 1700000000,
+        "valid_until": 4102444800,
+        "billing_interval": "monthly",
+        "addon_code": null,
+        "using_party_identity_provider": "google",
+        "using_party_identity_subject": "user-sub",
+        "using_party_email": "user@example.com",
+        "assigned_user_party_id": "up_1"
+      },
+      {
+        "subscription_id": "sub_addon",
+        "plan_id": "plan_ai",
+        "product_id": "prod_mail",
+        "plan_name": "AI Assistant",
+        "product_name": "Mail",
+        "subscription_status": "active",
+        "valid_until": 4102444800,
+        "billing_interval": "monthly",
+        "addon_code": "ai_assistant"
+      }
+    ]
+  }
+}

@@ -1,0 +1,127 @@
+# Release billing core binaries (CLI + cdylib)
+
+# Builds Windows / macOS / Linux desktop targets for Binary Private Core distribution.
+# Public 2key-billing-sdks consumes these assets via scripts/fetch-binaries.*
+
+name: Release binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to publish as (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cli_name: two-key-linux-x86_64
+            lib_name: libtwo_key_core-linux-x86_64.so
+            lib_src: libtwo_key_core.so
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            cli_name: two-key-linux-aarch64
+            lib_name: libtwo_key_core-linux-aarch64.so
+            lib_src: libtwo_key_core.so
+            cross: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            cli_name: two-key-macos-x86_64
+            lib_name: libtwo_key_core-macos-x86_64.dylib
+            lib_src: libtwo_key_core.dylib
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            cli_name: two-key-macos-aarch64
+            lib_name: libtwo_key_core-macos-aarch64.dylib
+            lib_src: libtwo_key_core.dylib
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            cli_name: two-key-windows-x86_64.exe
+            lib_name: two_key_core-windows-x86_64.dll
+            lib_src: two_key_core.dll
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            cli_name: two-key-windows-aarch64.exe
+            lib_name: two_key_core-windows-aarch64.dll
+            lib_src: two_key_core.dll
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (Linux aarch64)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build release (native)
+        if: ${{ !matrix.cross }}
+        run: |
+          cargo build -p two-key-cli -p two-key-core --release --target ${{ matrix.target }}
+
+      - name: Build release (cross)
+        if: matrix.cross
+        run: |
+          cross build -p two-key-cli -p two-key-core --release --target ${{ matrix.target }}
+
+      - name: Stage artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_EXT=""
+          case "${{ matrix.target }}" in
+            *windows*) BIN_EXT=".exe" ;;
+          esac
+          cp "target/${{ matrix.target }}/release/two-key${BIN_EXT}" "dist/${{ matrix.cli_name }}"
+          cp "target/${{ matrix.target }}/release/${{ matrix.lib_src }}" "dist/${{ matrix.lib_name }}"
+          (
+            cd dist
+            if command -v sha256sum >/dev/null; then
+              sha256sum "${{ matrix.cli_name }}" "${{ matrix.lib_name }}" > "${{ matrix.cli_name }}.sha256"
+            else
+              shasum -a 256 "${{ matrix.cli_name }}" "${{ matrix.lib_name }}" > "${{ matrix.cli_name }}.sha256"
+            fi
+          )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.cli_name }}
+          path: dist/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten + checksum manifest
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          (cd release && sha256sum * > SHA256SUMS || shasum -a 256 * > SHA256SUMS)
+          ls -la release
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: release/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

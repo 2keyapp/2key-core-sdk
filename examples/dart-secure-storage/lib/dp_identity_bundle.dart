@@ -1,4 +1,4 @@
-/// In-memory bundle loaded from [DpSecretStore] — feed into dp-sdk / agent, do not log.
+/// In-memory bundle loaded from [DpSecretStore] — feed into 2key-core-sdk / agent, do not log.
 class DpIdentityBundle {
   const DpIdentityBundle({
     required this.ski,

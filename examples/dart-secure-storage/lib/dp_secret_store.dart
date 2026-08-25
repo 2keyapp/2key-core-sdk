@@ -5,7 +5,7 @@ import 'string_kv_store.dart';
 
 /// App-owned secret persistence for DP machine identity.
 ///
-/// Not part of dp-sdk core. Inject [FlutterSecureKvStore] from your Flutter app
+/// Not part of 2key-core-sdk published packages. Inject [FlutterSecureKvStore] from your Flutter app
 /// (see README) or [MemoryKvStore] in tests.
 class DpSecretStore {
   DpSecretStore({
