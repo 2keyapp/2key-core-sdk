@@ -278,7 +278,7 @@ mod tests {
 
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/delegate-permissions/machine-renew"))
+            .and(path("/machine-authn/machine-renew"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "status": "renewed",
                 "newSki": "newski"
@@ -311,7 +311,7 @@ mod tests {
 
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/delegate-permissions/machine-decommission"))
+            .and(path("/machine-authn/machine-decommission"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "ski": "oldski",
                 "status": "decommissioned"

@@ -1,4 +1,4 @@
-//! HTTP client SDK for Delegate Permissions (better-auth `delegate-permissions` plugin).
+//! HTTP client SDK for billing Machine AuthN (`/api/v1/machine-authn/*`).
 //!
 //! Wraps [`dp_rust`] wire types and [`dp_rust_mtls`] key/CSR helpers. The CLI
 //! (`dp-cli`) is a thin frontend over this crate.

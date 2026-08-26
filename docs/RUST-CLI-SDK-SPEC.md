@@ -73,30 +73,36 @@ Workspace members (root `Cargo.toml`): `dp-rust`, `dp-rust-mtls`, `dp-rust-sdk`,
 
 ## Server Endpoints (contract)
 
-The CLI calls these better-auth `delegate-permissions` endpoints:
+The CLI calls billing **Machine AuthN** under `/api/v1` (base URL like
+`https://api.example.com/api/v1`). Legacy Better Auth `/api/auth/delegate-permissions/*`
+is not used for IDR greenfield.
 
 | CLI action | HTTP endpoint | Method |
 |---|---|---|
-| `org init` / `signup` / `init` | `/delegate-permissions/kickstart-entity` | POST |
-| `register` / `machine enroll` | `/delegate-permissions/enroll-create` | POST |
-| `register --local` / `gen` | `/delegate-permissions/enroll-instant` | POST |
-| `invite` | `/delegate-permissions/enroll-invite` | POST |
-| `register --invite` (preview) | `/delegate-permissions/enroll-invite` | GET |
-| `machine status` | `/delegate-permissions/credential-status` | GET |
-| `machine pull` | `/delegate-permissions/enroll-pull` | POST |
-| `machine renew` | `/delegate-permissions/machine-renew` | POST |
-| `machine decommission` | `/delegate-permissions/machine-decommission` | POST |
-| `csr list` / `admin machine list` | `/delegate-permissions/enroll-list` | GET |
-| `csr show` | `/delegate-permissions/enroll-get` (fallback: list) | GET |
-| `csr approve` / `admin machine approve` | `/delegate-permissions/enroll-approve` | POST |
-| `csr reject` / `admin machine reject` | `/delegate-permissions/enroll-reject` | POST |
-| `admin machine revoke` | `/delegate-permissions/credential-revoke` | POST |
-| `admin credential list` | `/delegate-permissions/credential-list` | GET |
-| `platform root` | `/delegate-permissions/platform-root` | GET |
-| catalog | `/delegate-permissions/catalog` | GET |
-| enroll permissions (instant) | `/delegate-permissions/enroll-machine-permissions` | POST |
-| `auth login` (device) | `{backend}/device/code`, `{backend}/device/token` | POST |
-| `auth status` | `{backend}/get-session` | GET |
+| `org init` / `signup` / `init` | `/machine-authn/register` | POST |
+| `register` / `machine enroll` | `/machine-authn/enroll-create` | POST |
+| `register --local` / `gen` | `/machine-authn/enroll-instant` | POST |
+| `invite` | `/machine-authn/enroll-invite` | POST |
+| `register --invite` (preview) | `/machine-authn/enroll-invite` | GET |
+| `machine status` | `/machine-authn/credential-status` | GET |
+| `machine pull` | `/machine-authn/enroll-pull` | POST |
+| `machine renew` | `/machine-authn/machine-renew` | POST |
+| `machine decommission` | `/machine-authn/machine-decommission` | POST |
+| `csr list` / `admin machine list` | `/machine-authn/enroll-list` | GET |
+| `csr show` | `/machine-authn/enroll-get` (fallback: list) | GET |
+| `csr approve` / `admin machine approve` | `/machine-authn/enroll-approve` | POST |
+| `csr reject` / `admin machine reject` | `/machine-authn/enroll-reject` | POST |
+| `admin machine revoke` | `/machine-authn/credential-revoke` | POST |
+| `admin credential list` | `/machine-authn/credential-list` | GET |
+| `platform root` | `/machine-authn/platform-root` | GET |
+| catalog | `/machine-authn/catalog` | GET |
+| enroll permissions (instant) | `/machine-authn/enroll-machine-permissions` | POST |
+| `auth login` (device) | `{authBackend}/device/code`, `{authBackend}/device/token` | POST |
+| `auth status` | `{authBackend}/get-session` | GET |
+
+Billing v1 currently implements: `register`, `enroll-create` / `approve` / `pull` /
+`enroll-invite`, `issue-delegate`, `assert-subset`, `platform-root`, `credential-status`.
+Remaining rows are SDK-forward paths until the HTTP surface catches up.
 
 Kickstart is **client-keyed** by default: the CLI generates Entity CA + Root Admin locally and POSTs public JWKs, signed credentials, and `caCertPem`. `--server-keys` on `org init` is test-only (`allowServerKeygen`).
 
@@ -115,7 +121,7 @@ Copy [`.env.example`](../.env.example) for the full required vs optional list. C
 ```toml
 # .cargo/config.toml (per-product)
 [env]
-DP_BACKEND_URL = "https://api.example.com/api/auth"
+DP_BACKEND_URL = "https://api.example.com/api/v1"
 DP_PRODUCT_NAME = "idr"        # shown in --help, user agent
 DP_SEPARATOR = "--"             # machine identity separator
 ```

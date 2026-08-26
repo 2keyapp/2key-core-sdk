@@ -1,4 +1,4 @@
-//! HTTP client for better-auth `delegate-permissions` endpoints.
+//! HTTP client for billing Machine AuthN (`/api/v1/machine-authn/*`).
 
 use std::sync::Arc;
 
@@ -13,7 +13,8 @@ use crate::keystore::{self, KeyStore};
 use crate::sdk_version;
 use crate::types::*;
 
-const PLUGIN: &str = "delegate-permissions";
+/// Path prefix under the billing API v1 base URL (e.g. `…/api/v1`).
+const PLUGIN: &str = "machine-authn";
 
 pub struct DpClient {
     http: Client,
@@ -227,7 +228,7 @@ impl DpClient {
     pub async fn kickstart_entity(&self, req: &KickstartRequest) -> Result<KickstartResponse> {
         self.send_json(
             Method::POST,
-            &self.plugin_path("kickstart-entity"),
+            &self.plugin_path("register"),
             &[],
             Some(req),
         )
@@ -581,13 +582,13 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
-    fn join_url_keeps_auth_prefix() {
+    fn join_url_keeps_api_v1_prefix() {
         assert_eq!(
             join_url(
-                "https://api.example.com/api/auth",
-                "delegate-permissions/enroll-create"
+                "https://api.example.com/api/v1",
+                "machine-authn/enroll-create"
             ),
-            "https://api.example.com/api/auth/delegate-permissions/enroll-create"
+            "https://api.example.com/api/v1/machine-authn/enroll-create"
         );
     }
 
@@ -595,7 +596,7 @@ mod tests {
     async fn enroll_create_posts_camel_case() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/delegate-permissions/enroll-create"))
+            .and(path("/machine-authn/enroll-create"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "enrollId": "e1",
                 "pullToken": "tok",
@@ -626,7 +627,7 @@ mod tests {
     async fn enroll_invite_posts_and_looks_up() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/delegate-permissions/enroll-invite"))
+            .and(path("/machine-authn/enroll-invite"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "inviteId": "i1",
                 "inviteToken": "tok",
@@ -636,7 +637,7 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
-            .and(path("/delegate-permissions/enroll-invite"))
+            .and(path("/machine-authn/enroll-invite"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "inviteId": "i1",
                 "entityId": "acme.com",
@@ -664,7 +665,7 @@ mod tests {
     async fn http_error_includes_status() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/delegate-permissions/platform-root"))
+            .and(path("/machine-authn/platform-root"))
             .respond_with(ResponseTemplate::new(503).set_body_string("nope"))
             .mount(&server)
             .await;
@@ -683,7 +684,7 @@ mod tests {
     async fn enroll_list_accepts_wrapped_array() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/delegate-permissions/enroll-list"))
+            .and(path("/machine-authn/enroll-list"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "enrollments": [{
                     "enrollId": "e1",
@@ -707,7 +708,7 @@ mod tests {
     async fn enroll_get_unwraps_enrollment_object() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/delegate-permissions/enroll-get"))
+            .and(path("/machine-authn/enroll-get"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "enrollment": {
                     "id": "e1",
@@ -727,7 +728,7 @@ mod tests {
     async fn credential_list_accepts_wrapped_array() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/delegate-permissions/credential-list"))
+            .and(path("/machine-authn/credential-list"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "credentials": [{
                     "ski": "abc",
@@ -753,7 +754,7 @@ mod tests {
     async fn credential_revoke_posts_reason() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/delegate-permissions/credential-revoke"))
+            .and(path("/machine-authn/credential-revoke"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "ski": "abc",
                 "status": "revoked"
@@ -773,7 +774,7 @@ mod tests {
     async fn platform_root_returns_pem_and_ski() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/delegate-permissions/platform-root"))
+            .and(path("/machine-authn/platform-root"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "platformRootPem": "-----BEGIN CERTIFICATE-----\nMII\n-----END CERTIFICATE-----",
                 "ski": "rootski"

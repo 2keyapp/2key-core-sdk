@@ -523,7 +523,7 @@ mod tests {
 
         let server = MockServer::start().await;
         Mock::given(method("POST"))
-            .and(path("/delegate-permissions/enroll-approve"))
+            .and(path("/machine-authn/enroll-approve"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "enrollId": "e1",
                 "status": "approved",
