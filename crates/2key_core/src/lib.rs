@@ -11,6 +11,7 @@ pub mod config;
 pub mod error;
 pub mod facade;
 pub mod ffi;
+pub mod frb_api;
 pub mod license;
 pub mod models;
 pub mod ports;

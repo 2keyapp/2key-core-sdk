@@ -5,7 +5,10 @@
 - License JWT verify (ES256) + entitlement decode
 - `/api/v1` HTTP (license ETag/304, subscriptions/me, plans)
 - Session orchestration over injected storage ports
-- C ABI / FFI surface for language wrappers (`c_api`, `ffi`, `facade`)
+- C ABI / FFI / FRB surface for language wrappers (`c_api`, `ffi`, `frb_api`, `facade`)
+  - Offline: `verify` / `init` license JWT
+  - Online: `ensure_billing_context` + `sync_license` (session JSON; Dart owns storage)
+  - See `docs/FRB.md` and `flutter_rust_bridge.yaml`
 
 ## Distribution
 

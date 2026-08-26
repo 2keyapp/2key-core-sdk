@@ -1,0 +1,13 @@
+# flutter_rust_bridge 2.11.x — generate from private core, vendor into public Dart SDK.
+#
+#   cargo install flutter_rust_bridge_codegen --version 2.11.1
+#   flutter_rust_bridge_codegen generate
+#
+# Copy generated Dart under:
+#   2key-billing-sdks/packages/dart/lib/src/frb/
+# Ship cdylib via Binary Private Core releases (fetch-binaries).
+
+rust_input: crate::frb_api
+rust_root: crates/2key_core/
+dart_output: ../2key-billing-sdks/packages/dart/lib/src/frb/generated
+full_dep: true
