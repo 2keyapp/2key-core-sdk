@@ -1,8 +1,8 @@
 # DP AuthZ — dual enforcement & package split
 
 **Status:** In progress (algebra extracted)  
-**Canonical pure algebra:** `@2key/dp-authorize` (TS) + `dp_rust::authorize` (Rust)  
-**Conformance:** `conformance/dp-authz/fixtures.json`
+**Canonical pure algebra:** `@2key/dp-authorize` (TS in `2key-browser-sdk`) + `dp_rust::authorize` (Rust, this repo)  
+**Conformance:** `conformance/dp-authz/fixtures.json` (keep in sync with `2key-browser-sdk` — that copy is canonical for TS)
 
 ## Model
 
@@ -20,11 +20,12 @@ Server PEP (mandatory)      →  same algebra in billing middleware / plugin
 
 | Package | Repo | Role |
 |---------|------|------|
-| `@2key/dp-authorize` | `2key-core-sdk` | Pure authorize + subset + `enforceLocally` |
+| `@2key/dp-authorize` | `2key-browser-sdk` | Pure authorize + subset + `enforceLocally` |
 | `dp-rust` (`authorize` mod) | `2key-core-sdk` | Same algebra for CLI/agents |
-| `@2key/dp-ts` / `dp-cli` | `2key-core-sdk` | Clients (call algebra before HTTP) |
+| `@2key/dp-ts` | `2key-browser-sdk` | TS clients (call algebra before HTTP) |
+| `dp-cli` | `2key-core-sdk` | Rust CLI / agents |
 | `delegate-permissions` plugin | better-auth → **move to billing** | Issue, DB, enroll, HTTP endpoints |
-| Catalogs | `2key-core-sdk/catalogs/*` | Tenant seeds |
+| Catalogs | `2key-browser-sdk/catalogs/*` | Tenant seeds |
 
 ## Client usage (gate before service call)
 

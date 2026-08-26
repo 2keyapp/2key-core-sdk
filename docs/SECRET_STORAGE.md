@@ -1,6 +1,6 @@
 ﻿# App-owned secret storage (policy)
 
-**`2key-core-sdk` Delegate Permissions packages do not persist secrets.** They accept in-memory `DeviceIdentity` / JWKs / PEMs only. That includes `dp-ts`, `dp-mtls`, `dp-rust`, `dp-rust-mtls`, and `dp-rust-sdk`.
+**`2key-core-sdk` Rust DP packages do not persist secrets.** They accept in-memory identity / JWKs / PEMs only (`dp-rust`, `dp-rust-mtls`, `dp-rust-sdk`). TypeScript counterparts live in **`2key-browser-sdk`** with the same policy.
 
 The **CLI and agent are the host** for a laptop or server: they write secrets under `$DP_STATE_DIR` (default `~/.{product}`):
 

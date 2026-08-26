@@ -2,18 +2,11 @@
   "name": "2key-core-sdk",
   "private": true,
   "version": "0.1.0",
-  "description": "2key private core SDK: billing native core (two-key-core) + Delegate Permissions clients",
+  "description": "2key private native core: two-key-core + two-key CLI + DP Rust (dp-rust*)",
   "scripts": {
-    "build": "pnpm -r run build",
-    "test": "pnpm -r run test",
-    "typecheck": "pnpm -r run typecheck",
-    "test:rust": "cargo test -p two-key-core -p dp-rust",
-    "build:cli": "cargo build -p two-key-cli --release"
+    "test:rust": "cargo test -p two-key-core -p dp-rust -p dp-rust-mtls",
+    "build:cli": "cargo build -p two-key-cli --release",
+    "test": "cargo test -p two-key-core -p dp-rust -p dp-rust-mtls"
   },
-  "engines": {
-    "node": ">=20",
-    "pnpm": ">=9"
-  },
-  "packageManager": "pnpm@9.15.0",
   "license": "MIT"
 }

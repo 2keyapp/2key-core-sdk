@@ -25,17 +25,3 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Test dp-rust workspace crates
         run: cargo test -p dp-rust -p dp-rust-mtls
-
-  typescript:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-      - run: pnpm install
-      - run: pnpm test
