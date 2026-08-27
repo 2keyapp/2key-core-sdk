@@ -16,6 +16,18 @@ Server PEP (mandatory)      →  same algebra in billing middleware / plugin
 - Server **always** re-checks. Client allow ≠ server allow if revoked/stale.
 - Do **not** run a separate Rust AuthZ **server** next to Express; server stays TS.
 
+### Algebra v2
+
+| Algebra | Use |
+|---------|-----|
+| `exact` | Identity equality |
+| `dns_prefix` | IDR FQHN / leftward labels |
+| `path_prefix` | Rightward paths (`@acme/pkg/...`); segment-bounded |
+| `set` | Enumerated membership |
+| `semver` | Exact version vs range; range ⊆ range (closed v1 grammar) |
+
+Capabilities may set `effect: "deny"` (default `"allow"`). Matching deny wins (`EXPLICIT_DENY`). See better-auth `docs/adr/0002-dp-algebra-v2.md`.
+
 ## Packages
 
 | Package | Repo | Role |

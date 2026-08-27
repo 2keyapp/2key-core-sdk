@@ -1,21 +1,26 @@
 {
-  "version": 1,
-  "description": "Shared DP AuthZ conformance vectors — run in TS (@2key/dp-authorize) and Rust (dp-rust)",
+  "version": 2,
+  "description": "Shared DP AuthZ conformance vectors — run in TS (@2key/dp-authorize) and Rust (dp-rust). v2 adds path_prefix, semver, and explicit deny.",
   "catalog": {
     "serviceId": "demo",
-    "generation": 1,
+    "generation": 2,
     "actions": [
       { "action": "cert.issue" },
       { "action": "machine.bind" },
       { "action": "machine.connect" },
       { "action": "zone.delegate" },
       { "action": "entity.read" },
-      { "action": "acl.service" }
+      { "action": "acl.service" },
+      { "action": "modify" },
+      { "action": "publish" },
+      { "action": "package.publish" }
     ],
     "scopeDimensions": [
       { "dimension": "entity", "algebra": "exact" },
       { "dimension": "name", "algebra": "dns_prefix" },
-      { "dimension": "service", "algebra": "set" }
+      { "dimension": "service", "algebra": "set" },
+      { "dimension": "resource", "algebra": "path_prefix" },
+      { "dimension": "version", "algebra": "semver" }
     ]
   },
   "actionCovers": [
@@ -31,6 +36,31 @@
     { "child": "zone6.us-east", "parent": "us-east", "ok": true },
     { "child": "us-east", "parent": "zone6.us-east", "ok": false },
     { "child": "eu-west", "parent": "us-east", "ok": false }
+  ],
+  "pathPrefixSubset": [
+    { "child": "@acme/turbofan", "parent": "", "ok": true },
+    { "child": "@acme/turbofan", "parent": "@acme", "ok": true },
+    { "child": "@acme/turbofan/Rotor", "parent": "@acme/turbofan", "ok": true },
+    { "child": "@acme", "parent": "@acme/turbofan", "ok": false },
+    { "child": "@acme/turbofan-extra", "parent": "@acme/turbofan", "ok": false }
+  ],
+  "semverSatisfies": [
+    { "version": "2.4.1", "range": "^2.0.0", "ok": true },
+    { "version": "3.0.0", "range": "^2.0.0", "ok": false },
+    { "version": "2.4.1", "range": "~2.4.0", "ok": true },
+    { "version": "2.5.0", "range": "~2.4.0", "ok": false },
+    { "version": "1.9.0", "range": "1.x", "ok": true },
+    { "version": "2.0.0", "range": "1.x", "ok": false },
+    { "version": "2.4.1", "range": ">=2.0.0 <3.0.0", "ok": true },
+    { "version": "2.4.0-rc.1", "range": "^2.4.0", "ok": false },
+    { "version": "2.4.0-rc.1", "range": "2.4.0-rc.1", "ok": true }
+  ],
+  "semverRangeSubset": [
+    { "child": "^2.4.0", "parent": "^2.0.0", "ok": true },
+    { "child": "^2.0.0", "parent": "^2.4.0", "ok": false },
+    { "child": "2.4.1", "parent": "^2.0.0", "ok": true },
+    { "child": "~2.4.0", "parent": "2.x", "ok": true },
+    { "child": "2.x", "parent": "~2.4.0", "ok": false }
   ],
   "authorize": [
     {
@@ -86,6 +116,101 @@
       "resource": { "service": "rdp" },
       "ok": false,
       "code": "NOT_AUTHORIZED"
+    },
+    {
+      "name": "path_prefix allows descendant",
+      "grants": [
+        {
+          "action": "modify",
+          "scope": { "resource": "@acme/turbofan" },
+          "delegable": false
+        }
+      ],
+      "action": "modify",
+      "resource": { "resource": "@acme/turbofan/Rotor" },
+      "ok": true
+    },
+    {
+      "name": "path_prefix rejects sibling prefix escape",
+      "grants": [
+        {
+          "action": "modify",
+          "scope": { "resource": "@acme/turbofan" },
+          "delegable": false
+        }
+      ],
+      "action": "modify",
+      "resource": { "resource": "@acme/turbofan-extra" },
+      "ok": false,
+      "code": "NOT_AUTHORIZED"
+    },
+    {
+      "name": "semver allows version in range",
+      "grants": [
+        {
+          "action": "modify",
+          "scope": { "resource": "@acme/pump", "version": "^2.0.0" },
+          "delegable": false
+        }
+      ],
+      "action": "modify",
+      "resource": { "resource": "@acme/pump", "version": "2.4.1" },
+      "ok": true
+    },
+    {
+      "name": "semver rejects version outside range",
+      "grants": [
+        {
+          "action": "modify",
+          "scope": { "resource": "@acme/pump", "version": "^2.0.0" },
+          "delegable": false
+        }
+      ],
+      "action": "modify",
+      "resource": { "resource": "@acme/pump", "version": "3.0.0" },
+      "ok": false,
+      "code": "NOT_AUTHORIZED"
+    },
+    {
+      "name": "deny beats allow",
+      "grants": [
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme" },
+          "delegable": true,
+          "effect": "allow"
+        },
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme" },
+          "delegable": true,
+          "effect": "deny"
+        }
+      ],
+      "action": "publish",
+      "resource": { "resource": "@acme/turbofan" },
+      "ok": false,
+      "code": "EXPLICIT_DENY"
+    },
+    {
+      "name": "allow works when deny does not match",
+      "grants": [
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme" },
+          "delegable": true,
+          "effect": "allow"
+        },
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme/secrets" },
+          "delegable": true,
+          "effect": "deny"
+        }
+      ],
+      "action": "publish",
+      "resource": { "resource": "@acme/turbofan" },
+      "ok": true
     }
   ],
   "assertSubset": [
@@ -125,6 +250,102 @@
       ],
       "ok": false,
       "code": "SUBSET_VIOLATION"
+    },
+    {
+      "name": "path_prefix attenuation ok",
+      "parent": [
+        {
+          "action": "modify",
+          "scope": { "resource": "@acme" },
+          "delegable": true
+        }
+      ],
+      "child": [
+        {
+          "action": "modify",
+          "scope": { "resource": "@acme/turbofan" },
+          "delegable": false
+        }
+      ],
+      "ok": true
+    },
+    {
+      "name": "semver range attenuation ok",
+      "parent": [
+        {
+          "action": "modify",
+          "scope": { "version": "^2.0.0" },
+          "delegable": true
+        }
+      ],
+      "child": [
+        {
+          "action": "modify",
+          "scope": { "version": "^2.4.0" },
+          "delegable": false
+        }
+      ],
+      "ok": true
+    },
+    {
+      "name": "semver broader range rejected",
+      "parent": [
+        {
+          "action": "modify",
+          "scope": { "version": "^2.4.0" },
+          "delegable": true
+        }
+      ],
+      "child": [
+        {
+          "action": "modify",
+          "scope": { "version": "^2.0.0" },
+          "delegable": false
+        }
+      ],
+      "ok": false,
+      "code": "SUBSET_VIOLATION"
+    },
+    {
+      "name": "cannot allow what parent denies",
+      "parent": [
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme" },
+          "delegable": true,
+          "effect": "deny"
+        }
+      ],
+      "child": [
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme/open-source" },
+          "delegable": false,
+          "effect": "allow"
+        }
+      ],
+      "ok": false,
+      "code": "DENY_OVERRIDE_VIOLATION"
+    },
+    {
+      "name": "deny inside parent allow ok",
+      "parent": [
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme" },
+          "delegable": true,
+          "effect": "allow"
+        }
+      ],
+      "child": [
+        {
+          "action": "publish",
+          "scope": { "resource": "@acme/secrets" },
+          "delegable": false,
+          "effect": "deny"
+        }
+      ],
+      "ok": true
     }
   ]
 }

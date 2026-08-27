@@ -8,8 +8,9 @@
 pub mod authorize;
 
 pub use authorize::{
-    action_covers, assert_subset, authorize, dns_prefix_subset, ActionDef, AuthzOutcome,
-    Catalog, ScopeDimensionDef,
+    action_covers, assert_subset, authorize, dns_prefix_subset, path_prefix_subset,
+    semver_range_subset, semver_satisfies, ActionDef, AuthzOutcome, Catalog,
+    ScopeDimensionDef,
 };
 
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,8 @@ pub struct Capability {
     pub action: String,
     pub scope: Value,
     pub delegable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
