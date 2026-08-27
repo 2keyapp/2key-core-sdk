@@ -47,6 +47,17 @@ pub enum Error {
     Message(String),
 }
 
+impl From<billing_http::BillingHttpError> for Error {
+    fn from(value: billing_http::BillingHttpError) -> Self {
+        match value {
+            billing_http::BillingHttpError::Http { status, body } => Self::Http { status, body },
+            billing_http::BillingHttpError::Message(msg) => Self::Message(msg),
+            billing_http::BillingHttpError::Reqwest(e) => Self::Request(e),
+            billing_http::BillingHttpError::Json(e) => Self::Json(e),
+        }
+    }
+}
+
 impl Error {
     pub fn enrollment(msg: impl Into<String>) -> Self {
         Self::Enrollment(msg.into())

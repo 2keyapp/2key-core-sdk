@@ -1,7 +1,9 @@
 //! HTTP client for billing Machine AuthN (`/api/v1/machine-authn/*`).
+//!
+//! Machine AuthN HTTP is delegated to public `billing_http`; this type adds mTLS
+//! transport and forward-compatible routes not yet on all servers.
 
-use std::sync::Arc;
-
+use billing_http::MachineAuthnClient as BillingMachineAuthn;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, COOKIE, USER_AGENT};
 use reqwest::{Client, Method, StatusCode};
 use rustls::ClientConfig as RustlsClientConfig;
@@ -23,6 +25,8 @@ pub struct DpClient {
     extra_headers: HeaderMap,
     user_agent: String,
     client_pem: Option<Vec<u8>>,
+    /// Public billing-sdks HTTP client for `/machine-authn/*`.
+    machine: BillingMachineAuthn,
 }
 
 impl DpClient {
@@ -36,6 +40,7 @@ impl DpClient {
             extra_headers: HeaderMap::new(),
             user_agent,
             client_pem: None,
+            machine: BillingMachineAuthn::new(base_url),
         }
     }
 
@@ -49,6 +54,7 @@ impl DpClient {
 
     pub fn with_auth(mut self, token: &str) -> Self {
         self.auth_token = Some(token.to_string());
+        self.machine = BillingMachineAuthn::new(&self.base_url).with_auth(token);
         self
     }
 
@@ -226,13 +232,7 @@ impl DpClient {
     // --- Entity -----------------------------------------------------------
 
     pub async fn kickstart_entity(&self, req: &KickstartRequest) -> Result<KickstartResponse> {
-        self.send_json(
-            Method::POST,
-            &self.plugin_path("register"),
-            &[],
-            Some(req),
-        )
-        .await
+        self.machine.register(req).await.map_err(Into::into)
     }
 
     pub async fn get_entity(&self, entity_id: &str) -> Result<EntityResponse> {
@@ -248,13 +248,7 @@ impl DpClient {
     // --- Enrollment -------------------------------------------------------
 
     pub async fn enroll_create(&self, req: &EnrollCreateRequest) -> Result<EnrollCreateResponse> {
-        self.send_json(
-            Method::POST,
-            &self.plugin_path("enroll-create"),
-            &[],
-            Some(req),
-        )
-        .await
+        self.machine.enroll_create(req).await.map_err(Into::into)
     }
 
     pub async fn enroll_invite(&self, req: &EnrollInviteRequest) -> Result<EnrollInviteResponse> {
@@ -306,26 +300,17 @@ impl DpClient {
         struct Body<'a> {
             pull_token: &'a str,
         }
-        self.send_json(
-            Method::POST,
-            &self.plugin_path("enroll-pull"),
-            &[],
-            Some(&Body { pull_token }),
-        )
-        .await
+        self.machine
+            .enroll_pull(&Body { pull_token })
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn enroll_approve(
         &self,
         req: &EnrollApproveRequest,
     ) -> Result<EnrollApproveResponse> {
-        self.send_json(
-            Method::POST,
-            &self.plugin_path("enroll-approve"),
-            &[],
-            Some(req),
-        )
-        .await
+        self.machine.enroll_approve(req).await.map_err(Into::into)
     }
 
     pub async fn enroll_reject(&self, enroll_id: &str) -> Result<()> {
@@ -392,13 +377,10 @@ impl DpClient {
     // --- Lifecycle --------------------------------------------------------
 
     pub async fn credential_status(&self, ski: &str) -> Result<CredentialStatusResponse> {
-        self.send_json(
-            Method::GET,
-            &self.plugin_path("credential-status"),
-            &[("ski", ski)],
-            None::<&()>,
-        )
-        .await
+        self.machine
+            .credential_status(ski)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn credential_list(
@@ -471,13 +453,7 @@ impl DpClient {
     // --- Platform ---------------------------------------------------------
 
     pub async fn platform_root(&self) -> Result<PlatformRootResponse> {
-        self.send_json(
-            Method::GET,
-            &self.plugin_path("platform-root"),
-            &[],
-            None::<&()>,
-        )
-        .await
+        self.machine.platform_root().await.map_err(Into::into)
     }
 
     pub async fn catalog(&self) -> Result<CatalogResponse> {

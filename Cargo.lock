@@ -72,6 +72,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.92"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -94,6 +105,16 @@ name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "billing_http"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "bitflags"
@@ -397,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "dp-cli"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "clap",
  "console",
@@ -410,7 +431,7 @@ dependencies = [
 
 [[package]]
 name = "dp-rust"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -418,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "dp-rust-mtls"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "base64",
  "dp-rust",
@@ -437,8 +458,10 @@ dependencies = [
 
 [[package]]
 name = "dp-rust-sdk"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
+ "async-trait",
+ "billing_http",
  "directories",
  "dp-rust",
  "dp-rust-mtls",
@@ -2139,7 +2162,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "two-key-cli"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "keyring",
  "two-key-core",
@@ -2147,9 +2170,11 @@ dependencies = [
 
 [[package]]
 name = "two-key-core"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "base64",
+ "dp-rust",
+ "dp-rust-mtls",
  "p256",
  "rand_core 0.6.4",
  "serde",

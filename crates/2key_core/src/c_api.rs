@@ -1,5 +1,10 @@
 //! C ABI for Dart FRB wire / `dart:ffi`. Keep JSON-string oriented.
 
+use crate::crypto_ffi::{
+    ffi_generate_key_and_csr_json, ffi_materialize_mtls_client_json,
+    ffi_sign_client_cert_from_csr_json, ffi_sign_json_b64url_json,
+    ffi_verify_ed25519_cert_json,
+};
 use crate::ffi::{
     ffi_ensure_billing_context_json, ffi_error_codes, ffi_init_license_json,
     ffi_normalize_api_base_url, ffi_parse_session_json, ffi_should_poll_json,
@@ -159,4 +164,64 @@ pub unsafe extern "C" fn two_key_validate_config_json(
 #[no_mangle]
 pub extern "C" fn two_key_error_codes() -> *mut c_char {
     to_c_string(ffi_error_codes().join(","))
+}
+
+/// Generate device key + CSR → JSON. Caller must free the result.
+///
+/// # Safety
+/// `input_json` must be a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_crypto_generate_key_and_csr_json(
+    input_json: *const c_char,
+) -> *mut c_char {
+    let input = cstr_to_string(input_json).unwrap_or_default();
+    to_c_string(ffi_generate_key_and_csr_json(input))
+}
+
+/// Sign CSR with CA → JSON leaf + chain. Caller must free the result.
+///
+/// # Safety
+/// `input_json` must be a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_crypto_sign_client_cert_from_csr_json(
+    input_json: *const c_char,
+) -> *mut c_char {
+    let input = cstr_to_string(input_json).unwrap_or_default();
+    to_c_string(ffi_sign_client_cert_from_csr_json(input))
+}
+
+/// Verify Ed25519 leaf against issuer PEM → JSON `{ valid: bool }`.
+///
+/// # Safety
+/// `input_json` must be a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_crypto_verify_ed25519_cert_json(
+    input_json: *const c_char,
+) -> *mut c_char {
+    let input = cstr_to_string(input_json).unwrap_or_default();
+    to_c_string(ffi_verify_ed25519_cert_json(input))
+}
+
+/// Materialize mTLS client PEM from identity JSON.
+///
+/// # Safety
+/// `identity_json` must be a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_crypto_materialize_mtls_client_json(
+    identity_json: *const c_char,
+) -> *mut c_char {
+    let input = cstr_to_string(identity_json).unwrap_or_default();
+    to_c_string(ffi_materialize_mtls_client_json(input))
+}
+
+/// Sign JSON with Ed25519 private PEM (agent PoP).
+///
+/// # Safety
+/// `input_json` must be a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn two_key_crypto_sign_json_b64url_json(
+    input_json: *const c_char,
+) -> *mut c_char {
+    let input = cstr_to_string(input_json).unwrap_or_default();
+    to_c_string(ffi_sign_json_b64url_json(input))
 }

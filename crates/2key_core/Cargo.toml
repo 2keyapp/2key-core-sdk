@@ -20,6 +20,8 @@ thiserror = { workspace = true }
 ureq = { workspace = true }
 base64 = { workspace = true }
 p256 = { workspace = true }
+dp-rust = { path = "../../packages/dp-rust" }
+dp-rust-mtls = { path = "../../packages/dp-rust-mtls" }
 
 [dev-dependencies]
 p256 = { workspace = true }

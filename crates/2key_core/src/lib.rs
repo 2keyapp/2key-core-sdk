@@ -8,6 +8,7 @@
 pub mod api;
 pub mod c_api;
 pub mod config;
+pub mod crypto_ffi;
 pub mod error;
 pub mod facade;
 pub mod ffi;

@@ -13,6 +13,7 @@ use time::OffsetDateTime;
 use crate::admin::{issue_machine_leaf, load_entity_ca, EntityCaMaterial};
 use crate::client::DpClient;
 use crate::error::{Error, Result};
+use crate::machine_authn_port::MachineAuthnPort;
 use crate::identity::MachineIdentity;
 use crate::keystore::{self, KeyStore};
 use crate::types::{
@@ -156,7 +157,10 @@ pub async fn enroll_machine(
     Ok(state)
 }
 
-pub async fn pull_enrollment(client: &DpClient, store: &impl KeyStore) -> Result<MachineState> {
+pub async fn pull_enrollment(
+    client: &impl MachineAuthnPort,
+    store: &impl KeyStore,
+) -> Result<MachineState> {
     let mut state = load_state(store)?.ok_or_else(|| {
         Error::enrollment("no local enrollment state — run `machine enroll` first")
     })?;
@@ -170,7 +174,7 @@ pub async fn pull_enrollment(client: &DpClient, store: &impl KeyStore) -> Result
 }
 
 pub async fn wait_for_approval(
-    client: &DpClient,
+    client: &impl MachineAuthnPort,
     store: &impl KeyStore,
     interval: Duration,
 ) -> Result<MachineState> {

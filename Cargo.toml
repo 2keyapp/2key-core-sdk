@@ -11,7 +11,7 @@ members = [
 default-members = ["crates/2key_core", "crates/2key_cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/2keyapp/2key-core-sdk"

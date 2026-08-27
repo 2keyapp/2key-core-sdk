@@ -9,6 +9,8 @@ repository.workspace = true
 [dependencies]
 dp-rust = { path = "../dp-rust" }
 dp-rust-mtls = { path = "../dp-rust-mtls" }
+billing_http = { path = "../../../2key-billing-sdks/crates/billing_http" }
+async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1", features = ["derive"] }

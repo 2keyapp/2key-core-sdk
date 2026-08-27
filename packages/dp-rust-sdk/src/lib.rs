@@ -13,6 +13,7 @@ mod error;
 mod identity;
 mod keystore;
 mod lifecycle;
+mod machine_authn_port;
 mod session;
 mod types;
 
@@ -43,6 +44,7 @@ pub use keystore::{
 pub use lifecycle::{
     complete_renewal, decommission_machine, prepare_renewal, renew_machine, RenewParams,
 };
+pub use machine_authn_port::MachineAuthnPort;
 pub use session::{
     delete_session, load_session, save_session, DeviceCodeResponse, DeviceTokenIssued,
     DeviceTokenPoll, GetSessionResponse, SessionTransport, SessionUser, StoredSession,
