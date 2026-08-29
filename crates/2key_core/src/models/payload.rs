@@ -178,6 +178,22 @@ impl LicensePayload {
     pub fn is_expired(&self, now_unix: i64) -> bool {
         now_unix > self.expires_at_unix
     }
+
+    /// True when every subscription that lists devices includes [local_ski],
+    /// or when no subscription lists devices (unbound legacy licenses).
+    pub fn allows_local_device(&self, local_ski: &str) -> bool {
+        let mut saw_bound = false;
+        for sub in self.active_subscriptions() {
+            if sub.device_skis.is_empty() {
+                continue;
+            }
+            saw_bound = true;
+            if sub.allows_device(local_ski) {
+                return true;
+            }
+        }
+        !saw_bound
+    }
 }
 
 /// Helper for serde round-trip of fixture JSON files.

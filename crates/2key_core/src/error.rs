@@ -19,6 +19,8 @@ pub enum ErrorCode {
     LicenseExpired,
     /// License JWT malformed or missing required claims.
     LicenseMalformed,
+    /// License lists devices but this device SKI is not among them.
+    LicenseDeviceMismatch,
     /// License sync returned 304 Not Modified.
     NotModified,
     /// Unexpected server response shape.
@@ -44,6 +46,7 @@ impl ErrorCode {
             Self::LicenseInvalid => "license_invalid",
             Self::LicenseExpired => "license_expired",
             Self::LicenseMalformed => "license_malformed",
+            Self::LicenseDeviceMismatch => "license_device_mismatch",
             Self::NotModified => "not_modified",
             Self::InvalidResponse => "invalid_response",
             Self::Unknown => "unknown",

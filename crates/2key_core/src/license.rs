@@ -39,6 +39,17 @@ impl LicenseVerifier {
 
     /// Verify signature + exp, then parse claims into [LicensePayload].
     pub fn verify_and_decode(&self, token: &str, clock: &dyn Clock) -> VerifyOutcome {
+        self.verify_and_decode_for_device(token, clock, None)
+    }
+
+    /// Like [Self::verify_and_decode], but when `local_ski` is set and the
+    /// license lists devices, require that SKI to appear on an active seat.
+    pub fn verify_and_decode_for_device(
+        &self,
+        token: &str,
+        clock: &dyn Clock,
+        local_ski: Option<&str>,
+    ) -> VerifyOutcome {
         let trimmed = token.trim();
         if trimmed.is_empty() {
             return VerifyOutcome::Failure {
@@ -100,7 +111,6 @@ impl LicenseVerifier {
         let signature = match Signature::from_slice(&sig_bytes) {
             Ok(s) => s,
             Err(_) => {
-                // Some JWTs use fixed-width R||S (64 bytes) — from_slice handles that for p256.
                 return VerifyOutcome::Failure {
                     code: ErrorCode::LicenseInvalid,
                     message: "Invalid token. It may have been copied incorrectly.".into(),
@@ -146,6 +156,15 @@ impl LicenseVerifier {
                     VerifyOutcome::Failure {
                         code: ErrorCode::LicenseExpired,
                         message: "This token has expired. Please sync or get a new token from the billing portal.".into(),
+                    }
+                } else if let Some(ski) = local_ski {
+                    if !payload.allows_local_device(ski) {
+                        VerifyOutcome::Failure {
+                            code: ErrorCode::LicenseDeviceMismatch,
+                            message: "This license is not valid for this device. Bind this device in billing or replace another device.".into(),
+                        }
+                    } else {
+                        VerifyOutcome::Success(payload)
                     }
                 } else {
                     VerifyOutcome::Success(payload)

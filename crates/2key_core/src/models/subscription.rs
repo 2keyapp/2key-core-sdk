@@ -72,6 +72,12 @@ pub struct BillingSubscription {
     pub billing_interval: Option<String>,
     /// Add-on code metadata.
     pub addon_code: Option<String>,
+    /// Using-party membership id.
+    pub member_id: Option<String>,
+    /// Max active app devices for this seat.
+    pub max_devices: Option<i64>,
+    /// Bound device SKIs for this seat.
+    pub device_skis: Vec<String>,
     /// Using-party IdP.
     pub using_party_identity_provider: Option<String>,
     /// Using-party subject.
@@ -105,6 +111,19 @@ impl BillingSubscription {
             )
         })?;
 
+        let mut device_skis = Vec::new();
+        if let Some(Value::Array(arr)) = get_key(m, "devices", "devices") {
+            for item in arr {
+                if let Some(obj) = item.as_object() {
+                    if let Some(ski) = as_string(obj.get("ski")) {
+                        if !ski.is_empty() {
+                            device_skis.push(ski);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(Self {
             subscription_id: require("subscription_id", "subscriptionId")?,
             plan_id: require("plan_id", "planId")?,
@@ -117,6 +136,9 @@ impl BillingSubscription {
             billing_interval: as_string(get_key(m, "billing_interval", "billingInterval"))
                 .filter(|s| !s.trim().is_empty()),
             addon_code: as_string(get_key(m, "addon_code", "addonCode")).filter(|s| !s.is_empty()),
+            member_id: as_string(get_key(m, "member_id", "memberId")).filter(|s| !s.is_empty()),
+            max_devices: as_i64(get_key(m, "max_devices", "maxDevices")),
+            device_skis,
             using_party_identity_provider: as_string(get_key(
                 m,
                 "using_party_identity_provider",
@@ -143,5 +165,13 @@ impl BillingSubscription {
     /// Active / trialing.
     pub fn is_active(&self) -> bool {
         SubscriptionStatus::parse(&self.subscription_status).is_entitled()
+    }
+
+    /// True when this seat lists devices and [local_ski] is among them.
+    pub fn allows_device(&self, local_ski: &str) -> bool {
+        if self.device_skis.is_empty() {
+            return true;
+        }
+        self.device_skis.iter().any(|s| s == local_ski)
     }
 }
