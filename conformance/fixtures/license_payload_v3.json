@@ -45,6 +45,11 @@
       }
     ],
     "entitlements": {
+      "by_product": {
+        "prod_mail": {
+          "max_devices": 10
+        }
+      },
       "max_devices": 10,
       "addons": ["scomm_connector"],
       "by_offering_code": {

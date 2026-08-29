@@ -75,6 +75,20 @@ fn fixture_claims_parse() {
 }
 
 #[test]
+fn fixture_claims_parse_v3_entitlements() {
+    let path = fixtures_dir().join("license_payload_v3.json");
+    let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {:?}: {e}", path));
+    let v: Value = serde_json::from_str(&raw).expect("fixture json");
+    let claims = v.get("claims").cloned().expect("claims");
+    let payload = LicensePayload::from_claims(&claims).expect("parse v3");
+    assert_eq!(payload.payload_version, 3);
+    assert_eq!(payload.subscriptions[0].quantity, 2);
+    assert_eq!(payload.max_devices(1_700_000_000), 10);
+    assert_eq!(payload.resource_for_product("prod_mail", "max_devices"), 10);
+    assert!(payload.has_addon("scomm_connector", 1_700_000_000));
+}
+
+#[test]
 fn verify_signed_license_es256() {
     let (signing, pub_pem) = generate_es256_pem_pair();
     let mut claims = load_fixture_claims();

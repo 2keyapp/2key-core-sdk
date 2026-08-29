@@ -104,6 +104,8 @@ pub struct LicensePayload {
     pub paying_party: PayingParty,
     /// Subscriptions.
     pub subscriptions: Vec<BillingSubscription>,
+    /// Server entitlements object when payload_version >= 3.
+    pub entitlements_json: Option<serde_json::Map<String, Value>>,
 }
 
 impl LicensePayload {
@@ -158,6 +160,11 @@ impl LicensePayload {
             );
         }
 
+        let entitlements_json = match m.get("entitlements") {
+            Some(Value::Object(obj)) => Some(obj.clone()),
+            _ => None,
+        };
+
         Ok(Self {
             payload_version,
             expires_at_unix,
@@ -166,6 +173,83 @@ impl LicensePayload {
             audience,
             paying_party,
             subscriptions,
+            entitlements_json,
+        })
+    }
+
+    /// Aggregated `max_devices` from server entitlements or seat fallback.
+    /// Prefer `by_product` sums when present.
+    pub fn max_devices(&self, now_unix: i64) -> i64 {
+        if self.payload_version >= 3 {
+            if let Some(obj) = &self.entitlements_json {
+                if let Some(Value::Object(by_product)) = obj.get("by_product") {
+                    let mut total = 0i64;
+                    for resources in by_product.values() {
+                        if let Some(n) = as_i64(resources.get("max_devices")) {
+                            total += n.max(0);
+                        }
+                    }
+                    if total > 0 || !by_product.is_empty() {
+                        return total;
+                    }
+                }
+                if let Some(n) = as_i64(obj.get("max_devices")) {
+                    return n.max(0);
+                }
+            }
+        }
+        let mut total = 0i64;
+        for s in self.active_subscriptions() {
+            if s.valid_until_unix <= now_unix {
+                continue;
+            }
+            let q = s.quantity.max(1);
+            if !s.offerings.is_empty() {
+                for o in &s.offerings {
+                    if let Some(n) = as_i64(o.resources.get("max_devices")) {
+                        total += n.max(0) * o.units.max(1) * q;
+                    }
+                }
+            } else if let Some(n) = s.max_devices {
+                total += n.max(0) * q;
+            }
+        }
+        total
+    }
+
+    /// Resource quantity for one product (summed across offerings/plans).
+    pub fn resource_for_product(&self, product_id: &str, resource_key: &str) -> i64 {
+        if let Some(obj) = &self.entitlements_json {
+            if let Some(Value::Object(by_product)) = obj.get("by_product") {
+                if let Some(Value::Object(resources)) = by_product.get(product_id) {
+                    return as_i64(resources.get(resource_key)).unwrap_or(0).max(0);
+                }
+            }
+        }
+        0
+    }
+
+    /// Whether an addon code is granted by entitlements / seats.
+    pub fn has_addon(&self, addon_code: &str, now_unix: i64) -> bool {
+        let needle = addon_code.trim().to_ascii_lowercase();
+        if self.payload_version >= 3 {
+            if let Some(obj) = &self.entitlements_json {
+                if let Some(Value::Array(arr)) = obj.get("addons") {
+                    for a in arr {
+                        if let Some(s) = a.as_str() {
+                            if s.eq_ignore_ascii_case(&needle) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.active_subscriptions().any(|s| {
+            s.valid_until_unix > now_unix
+                && s.addon_code
+                    .as_ref()
+                    .is_some_and(|c| c.eq_ignore_ascii_case(&needle))
         })
     }
 

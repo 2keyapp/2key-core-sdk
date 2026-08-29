@@ -24,7 +24,8 @@ pub use error::{ErrorCode, Result, TwoKeyError};
 pub use facade::TwoKeyClient;
 pub use license::{LicenseVerifier, VerifyOutcome};
 pub use models::{
-    BillingSubscription, LicensePayload, PayingParty, Plan, SubscriptionStatus,
+    BillingSubscription, LicenseOfferingClaim, LicensePayload, PayingParty, Plan,
+    SubscriptionStatus,
 };
 pub use ports::{
     AuthPort, Clock, InMemoryStorage, StaticTokenAuth, Storage, SystemClock,

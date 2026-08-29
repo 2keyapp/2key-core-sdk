@@ -6,4 +6,4 @@ mod subscription;
 
 pub use payload::{LicensePayload, PayingParty};
 pub use plan::Plan;
-pub use subscription::{BillingSubscription, SubscriptionStatus};
+pub use subscription::{BillingSubscription, LicenseOfferingClaim, SubscriptionStatus};
