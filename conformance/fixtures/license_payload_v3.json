@@ -1,0 +1,58 @@
+{
+  "claims": {
+    "payload_version": 3,
+    "iss": "https://billing.example.com",
+    "aud": "billing-license",
+    "iat": 1700000000,
+    "nbf": 1700000000,
+    "exp": 4102444800,
+    "paying_party": {
+      "id": "pp_test_1",
+      "identity_provider": "google",
+      "identity_subject": "sub-123",
+      "billing_email": "billing@example.com",
+      "organization_name": "Example Org"
+    },
+    "subscriptions": [
+      {
+        "subscription_id": "sub_1",
+        "paying_party_id": "pp_test_1",
+        "plan_id": "plan_connector",
+        "plan_name": "SComm Connect",
+        "quantity": 2,
+        "subscription_status": "active",
+        "valid_from": 1700000000,
+        "valid_until": 4102444800,
+        "billing_interval": "monthly",
+        "addon_code": "scomm_connector",
+        "max_devices": 10,
+        "offerings": [
+          {
+            "offering_id": "off_conn_5",
+            "offering_code": "scomm_connector_5",
+            "product_id": "prod_mail",
+            "product_name": "Mail",
+            "units": 1,
+            "resources": {
+              "max_devices": 5,
+              "addon_code": "scomm_connector"
+            }
+          }
+        ],
+        "using_party_identity_provider": "google",
+        "using_party_identity_subject": "user-sub",
+        "using_party_email": "user@example.com"
+      }
+    ],
+    "entitlements": {
+      "max_devices": 10,
+      "addons": ["scomm_connector"],
+      "by_offering_code": {
+        "scomm_connector_5": {
+          "max_devices": 10,
+          "addon_code": "scomm_connector"
+        }
+      }
+    }
+  }
+}
