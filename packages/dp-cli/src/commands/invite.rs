@@ -32,9 +32,12 @@ pub async fn run(args: InviteArgs, cfg: &ResolvedConfig) -> dp_rust_sdk::Result<
     } else {
         args.uses
     };
+    let ids = client(cfg).billing_party_ids().await?;
     let res = client(cfg)
         .enroll_invite(&EnrollInviteRequest {
             entity_id: org.clone(),
+            paying_party_id: Some(ids.paying_party_id),
+            member_id: Some(ids.member_id),
             kind: None,
             expires_in: args.expires_in,
             max_uses,

@@ -964,6 +964,7 @@ mod tests {
                     action: "machine.connect".into(),
                     scope: serde_json::json!({"name":"db1"}),
                     delegable: false,
+                    effect: None,
                 }],
                 zone: None,
                 host: Some("db1--acme.example".into()),

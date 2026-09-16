@@ -4,21 +4,21 @@
 >
 > Product UX (`signup` / `register` / numbered `csr`, human vs machine vs mTLS)
 > lives in [CLI-PRODUCT.md](./CLI-PRODUCT.md). This file is the **wire** contract
-> (HTTP, keys, nested power commands). Do not change the plugin to match product
-> verbs — map verbs onto these endpoints.
+> (HTTP, keys, nested power commands). Do not change billing Machine AuthN to match
+> product verbs — map verbs onto these endpoints.
 
 ## Overview
 
-A single Rust CLI binary that wraps `dp-rust` + `dp-rust-mtls` to perform the
-full machine certificate lifecycle against a better-auth server running the
-`delegate-permissions` plugin. Each product compiles with its own backend URL
-and renames the binary (e.g. `idr`, `acme-agent`, etc.).
+A single Rust CLI library (`dp-cli`) that wraps `dp-rust` + `dp-rust-mtls` to
+perform the full machine certificate lifecycle against billing
+`/api/v1/machine-authn/*`. Each product bakes its backend URL and binary name
+(e.g. IDR: sibling `idr-agent` with `https://billing.idr.to/api/v1`).
 
 ```
 ┌──────────────────────────────────┐
-│  better-auth server              │
-│  delegate-permissions plugin     │
-│  (HTTP API)                      │
+│  billing                         │
+│  /api/v1/machine-authn/*         │
+│  /api/auth (login)               │
 └──────────────┬───────────────────┘
                │
 ┌──────────────┴───────────────────┐
@@ -49,7 +49,7 @@ packages/
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs
-│       ├── client.rs     # reqwest → delegate-permissions
+│       ├── client.rs     # reqwest → /api/v1/machine-authn
 │       ├── types.rs      # request/response DTOs
 │       ├── keystore.rs   # FileKeyStore + MemoryKeyStore
 │       ├── enrollment.rs # enroll-create / enroll-instant state machine
@@ -114,9 +114,11 @@ Copy [`.env.example`](../.env.example) for the full required vs optional list. C
 
 **Required at product build** (baked into the binary via `option_env!`): `DP_BACKEND_URL`, `DP_PRODUCT_NAME`.
 
-**Optional at product build:** `DP_SEPARATOR` (default `--`).
+**Optional at product build:** `DP_SEPARATOR` (default `--`), `DP_AUTH_URL` (default: `/api/auth` on the same host as `DP_BACKEND_URL`).
 
-**Runtime only:** `DP_AUTH_TOKEN` (SSO cookie or Bearer; required for org/admin/enroll-instant), `DP_STATE_DIR` (default `~/.{product}`). Runtime env always overrides compiled defaults. Flags: `--backend-url`, `--token`, `--state-dir`.
+**Runtime only:** `DP_AUTH_TOKEN` (SSO cookie or Bearer; required for org/admin), `DP_STATE_DIR` (default `~/.{product}`). Runtime env always overrides compiled defaults. Flags: `--backend-url`, `--auth-url`, `--token`, `--state-dir`.
+
+CSR approve and enroll-invite are **organization owner only** (billing `OWNER_REQUIRED`).
 
 ```toml
 # .cargo/config.toml (per-product)
@@ -429,13 +431,13 @@ impl DpClient {
 ### Per-product build
 
 ```bash
-# IDR
-DP_BACKEND_URL="https://api.idr.to/api/auth" \
-DP_PRODUCT_NAME="idr" \
-cargo build --release -p dp-cli --bin idr --bin idr-agent
+# IDR (preferred: sibling tenant repo)
+cd ../idr-agent
+cargo build --release --bin idr --bin idr-agent
+# bakes DP_BACKEND_URL=https://billing.idr.to/api/v1
 
-# Another product
-DP_BACKEND_URL="https://api.acme.com/api/auth" \
+# Another product (same library)
+DP_BACKEND_URL="https://billing.example.com/api/v1" \
 DP_PRODUCT_NAME="acme" \
 cargo build --release -p dp-cli --bin dp-cli
 cp target/release/dp-cli acme
@@ -513,8 +515,7 @@ serde_json = "1"
 Step-by-step checks: [TEST-USECASES.md](./TEST-USECASES.md). There is no in-repo all-in-one live script.
 
 - **Unit tests:** `cargo test -p dp-rust-sdk -p dp-rust-mtls -p dp-cli`
-- **Plugin contract:** better-auth `e2e-smoke.test.ts`, `enroll.test.ts`
-- **CLI vs a running server:** §2 localhost (`signup` + `register --local`) then `openssl verify` (§4)
+- **CLI vs billing:** [TEST-USECASES.md](./TEST-USECASES.md) §2 split enroll (owner `csr approve`) then `openssl verify` (§4)
 
 ## Status
 

@@ -3,7 +3,7 @@ use console::style;
 use dp_rust_sdk::{
     admin_ca_cert, approve_enrollment, csr_fingerprint, enrollment_id, fetch_enrollment,
     load_state, reject_enrollment, requester_label, require_entity_ca, save_state, EnrollListItem,
-    EnrollmentStatus, ResolvedConfig,
+    EnrollmentStatus, FileKeyStore, KeyStore, ResolvedConfig, KEY_MACHINE_CSR,
 };
 
 use crate::client;
@@ -147,7 +147,7 @@ pub(crate) async fn show_cmd(
     request_id: &str,
     org: Option<&str>,
 ) -> dp_rust_sdk::Result<()> {
-    let item = fetch_enrollment(&client(cfg), request_id, org).await?;
+    let item = load_enrollment(cfg, request_id, org).await?;
     print_enrollment(&item);
     Ok(())
 }
@@ -160,7 +160,7 @@ pub(crate) async fn approve_cmd(
 ) -> dp_rust_sdk::Result<()> {
     let client = client(cfg);
     let store = store(cfg)?;
-    let item = fetch_enrollment(&client, request_id, org).await?;
+    let item = load_enrollment(cfg, request_id, org).await?;
     print_enrollment(&item);
 
     let entity_id = item
@@ -211,6 +211,49 @@ pub(crate) async fn reject_cmd(
     reject_enrollment(&client(cfg), request_id).await?;
     println!("{} {request_id}", style("rejected").red().bold());
     Ok(())
+}
+
+/// Billing v1 has no enroll-get / enroll-list. After `register` on this
+/// machine the CSR is already in the keystore — owner approve uses that.
+async fn load_enrollment(
+    cfg: &ResolvedConfig,
+    request_id: &str,
+    org: Option<&str>,
+) -> dp_rust_sdk::Result<EnrollListItem> {
+    let store = store(cfg)?;
+    if let Some(local) = enrollment_from_local_store(&store, request_id, org)? {
+        return Ok(local);
+    }
+    fetch_enrollment(&client(cfg), request_id, org).await
+}
+
+fn enrollment_from_local_store(
+    store: &FileKeyStore,
+    request_id: &str,
+    org: Option<&str>,
+) -> dp_rust_sdk::Result<Option<EnrollListItem>> {
+    let Some(state) = load_state(store)? else {
+        return Ok(None);
+    };
+    if state.enrollment_id.as_deref() != Some(request_id) {
+        return Ok(None);
+    }
+    let Some(csr_pem) = store.load_string(KEY_MACHINE_CSR)? else {
+        return Ok(None);
+    };
+    Ok(Some(EnrollListItem {
+        enroll_id: Some(request_id.to_string()),
+        entity_id: Some(
+            org.map(str::to_string)
+                .unwrap_or_else(|| state.entity_id.clone()),
+        ),
+        host: Some(state.machine_identity),
+        status: Some("pending".into()),
+        kind: state.kind.map(|k| k.as_str().to_string()),
+        ski: state.ski,
+        csr_pem: Some(csr_pem),
+        extra: Default::default(),
+    }))
 }
 
 fn print_enrollment(item: &EnrollListItem) {

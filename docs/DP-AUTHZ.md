@@ -1,15 +1,15 @@
 # DP AuthZ — dual enforcement & package split
 
 **Status:** In progress (algebra extracted)  
-**Canonical pure algebra:** `@2key/dp-authorize` (TS in `2key-browser-sdk`) + `dp_rust::authorize` (Rust, this repo)  
-**Conformance:** `conformance/dp-authz/fixtures.json` (keep in sync with `2key-browser-sdk` — that copy is canonical for TS)
+**Canonical pure algebra:** `@2key/dp-authorize` (TS in `2key-billing-sdks/packages/javascript`) + `dp_rust::authorize` (Rust, this repo)  
+**Conformance:** `conformance/dp-authz/fixtures.json` (keep in sync with `2key-billing-sdks` — that copy is canonical for TS)
 
 ## Model
 
 ```
-Issue / revoke / enroll     →  server (billing host + BA plugin, moving into billing)
+Issue / revoke / enroll     →  billing `/api/v1/machine-authn/*` + `devices`
 Local PEP (offline)         →  @2key/dp-authorize / dp-rust  (same fixtures)
-Server PEP (mandatory)      →  same algebra in billing middleware / plugin
+Server PEP (mandatory)      →  same algebra in billing middleware
 ```
 
 - Client `enforceLocally` / `authorize` filters requests for performance and offline UX.
@@ -32,12 +32,12 @@ Capabilities may set `effect: "deny"` (default `"allow"`). Matching deny wins (`
 
 | Package | Repo | Role |
 |---------|------|------|
-| `@2key/dp-authorize` | `2key-browser-sdk` | Pure authorize + subset + `enforceLocally` |
+| `@2key/dp-authorize` | `2key-billing-sdks` JS workspace | Pure authorize + subset + `enforceLocally` |
 | `dp-rust` (`authorize` mod) | `2key-core-sdk` | Same algebra for CLI/agents |
-| `@2key/dp-ts` | `2key-browser-sdk` | TS clients (call algebra before HTTP) |
-| `dp-cli` | `2key-core-sdk` | Rust CLI / agents |
-| `delegate-permissions` plugin | better-auth → **move to billing** | Issue, DB, enroll, HTTP endpoints |
-| Catalogs | `2key-browser-sdk/catalogs/*` | Tenant seeds |
+| `@2key/dp-ts` | `2key-billing-sdks` JS workspace | TS clients (call algebra before HTTP) |
+| `dp-cli` | `2key-core-sdk` | Rust CLI / agents (tenants wrap, e.g. `idr-agent`) |
+| Machine AuthN HTTP + `devices` | **billing** | Issue, enroll, CSR approve (owner-only) |
+| Catalogs (AuthZ) | `2key-billing-sdks/packages/javascript/catalogs/*` | Tenant action/profile seeds |
 
 ## Client usage (gate before service call)
 
@@ -60,28 +60,19 @@ await fetch(serviceUrl, ...);
 
 ## Server usage (billing)
 
-After the plugin lives in billing, middleware should:
+Machine AuthN HTTP already lives in billing (`/api/v1/machine-authn/*`). Middleware should:
 
 1. Authenticate (session JWT or mTLS → principal).
 2. Load CapabilitySet (session grant or cert-bound permissions).
-3. `authorize(grants, action, resource, catalog)` from `@2key/dp-authorize` (path/git dep on core-sdk until published).
+3. `authorize(grants, action, resource, catalog)` from `@2key/dp-authorize`.
 4. Only then run business logic / proxy upstream.
 
-## Move plugin to billing — checklist
+CSR approve / enroll-invite remain **owner only** (`OWNER_REQUIRED`).
 
-1. Copy `better-auth/.../delegate-permissions` → `2key-billing/packages/delegate-permissions` (or `src/plugins/`).
-2. Depend on `better-auth` / `@better-auth/core` as peers; depend on `@2key/dp-authorize` for algebra (replace inlined `capability/*`).
-3. Point billing `delegate-permissions.ts` imports at the local package.
-4. Delete plugin from better-auth fork; keep only AuthN + `@2key/auth-native`.
-5. CI: Vitest plugin tests in billing; conformance fixtures green in core-sdk (TS + Rust).
+## Better Auth (utility only)
+
+`better-auth/plugins/delegate-permissions` exports **algebra + PKI helpers**. Billing does not mount the HTTP plugin (`plugin.ts` is in-repo BA tests only). Machine AuthN HTTP, `devices` / Org CA, Host cosign, and owner-only CSR approve stay on billing `/api/v1/machine-authn/*`. Do not add `/delegate-permissions/*` routes.
 
 ## Sync rule
 
-Change AuthZ rules only in `@2key/dp-authorize` + `conformance/dp-authz/fixtures.json` + Rust `authorize` together.
-
-Until the BA plugin imports `@2key/dp-authorize` (or moves to billing):
-
-1. Edit algebra in `@2key/dp-authorize` first.
-2. Mirror the same change into `better-auth/.../capability/*`.
-3. Copy fixtures → `better-auth/.../capability/conformance.fixtures.json`.
-4. Confirm BA `conformance.test.ts` and core-sdk TS/Rust fixture tests pass.
+Change AuthZ rules only in `@2key/dp-authorize` + `conformance/dp-authz/fixtures.json` + Rust `authorize` together. Confirm `2key-billing-sdks` TS tests and core-sdk `cargo test -p dp-rust` both pass.

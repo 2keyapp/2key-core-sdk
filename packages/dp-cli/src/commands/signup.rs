@@ -2,7 +2,7 @@
 
 use clap::{ArgGroup, Args};
 use console::style;
-use dp_rust_sdk::{load_session, ResolvedConfig};
+use dp_rust_sdk::{jwt_claim_string, load_session, ResolvedConfig};
 
 use crate::auth_client;
 use crate::commands::org;
@@ -131,6 +131,11 @@ fn require_session(cfg: &ResolvedConfig) -> dp_rust_sdk::Result<()> {
 }
 
 async fn session_email(cfg: &ResolvedConfig) -> dp_rust_sdk::Result<String> {
+    if let Some(token) = cfg.auth_token.as_deref() {
+        if let Some(email) = jwt_claim_string(token, "email") {
+            return Ok(email);
+        }
+    }
     let http = auth_client(cfg);
     if let Some(info) = http.get_session().await? {
         if let Some(email) = info.user.and_then(|u| u.email).filter(|e| !e.is_empty()) {

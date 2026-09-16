@@ -3,23 +3,24 @@ use serde_json::Value;
 
 use dp_rust::{Capability, CapabilityCredential};
 
-/// Machine kind sent on enroll-create / enroll-instant.
+/// Machine kind sent on enroll-create.
 ///
-/// Serialized as the plugin aliases `target` / `source` (accepted by
-/// `enrollKindSchema` and normalized to `machine_target` / `machine_source`).
+/// Billing v1 expects `machine_target` / `machine_source`. Older aliases
+/// `target` / `source` are still accepted on deserialize.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
 pub enum MachineKind {
     #[default]
+    #[serde(rename = "machine_target", alias = "target")]
     Target,
+    #[serde(rename = "machine_source", alias = "source")]
     Source,
 }
 
 impl MachineKind {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Target => "target",
-            Self::Source => "source",
+            Self::Target => "machine_target",
+            Self::Source => "machine_source",
         }
     }
 }
@@ -198,6 +199,13 @@ pub struct IssuedCerts {
 pub struct KickstartRequest {
     pub entity_id: String,
     pub package: String,
+    /// Billing v1 register body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paying_party_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_ski: Option<String>,
     /// Client-generated Entity Root public JWK (production). All five client
     /// fields must be sent together or the plugin falls back to server keygen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -265,6 +273,10 @@ pub struct EntityResponse {
 #[serde(rename_all = "camelCase")]
 pub struct EnrollCreateRequest {
     pub entity_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paying_party_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_id: Option<String>,
     pub host: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<MachineKind>,
@@ -297,6 +309,10 @@ pub struct EnrollCreateResponse {
 #[serde(rename_all = "camelCase")]
 pub struct EnrollInviteRequest {
     pub entity_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paying_party_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<MachineKind>,
     /// Seconds until expiry. Omit to use the plugin `inviteExpiresIn` (default 7d; capped by `inviteMaxExpiresIn`).
@@ -372,6 +388,8 @@ pub struct EnrollPullResponse {
 #[serde(rename_all = "camelCase")]
 pub struct EnrollApproveRequest {
     pub enroll_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub member_id: Option<String>,
     pub leaf_pem: String,
     pub chain_pem: String,
     pub credential: CapabilityCredential,
@@ -574,6 +592,8 @@ mod tests {
     fn enroll_create_serializes_camel_case() {
         let req = EnrollCreateRequest {
             entity_id: "acme.com".into(),
+            paying_party_id: None,
+            member_id: None,
             host: "db1--acme.com".into(),
             kind: Some(MachineKind::Target),
             subject_ski: None,
@@ -584,7 +604,7 @@ mod tests {
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["entityId"], "acme.com");
         assert_eq!(v["csrPem"], req.csr_pem);
-        assert_eq!(v["kind"], "target");
+        assert_eq!(v["kind"], "machine_target");
         assert!(v.get("subjectSki").is_none());
         assert!(v.get("inviteToken").is_none());
     }
@@ -593,6 +613,8 @@ mod tests {
     fn enroll_invite_serializes_camel_case() {
         let req = EnrollInviteRequest {
             entity_id: "acme.com".into(),
+            paying_party_id: None,
+            member_id: None,
             kind: Some(MachineKind::Target),
             expires_in: Some(86400),
             max_uses: Some(50),
@@ -601,7 +623,7 @@ mod tests {
         assert_eq!(v["entityId"], "acme.com");
         assert_eq!(v["expiresIn"], 86400);
         assert_eq!(v["maxUses"], 50);
-        assert_eq!(v["kind"], "target");
+        assert_eq!(v["kind"], "machine_target");
         assert!(v.get("host").is_none());
     }
 
@@ -615,6 +637,7 @@ mod tests {
             root_credential: None,
             admin_credential: None,
             ca_cert_pem: Some("-----BEGIN CERTIFICATE-----\n".into()),
+            ..Default::default()
         };
         let v = serde_json::to_value(&req).unwrap();
         assert_eq!(v["entityId"], "smoke.test");

@@ -32,7 +32,7 @@ pub struct EntityCaMaterial {
     pub private_jwk: Value,
     pub public_jwk: Value,
     pub ca_cert_pem: String,
-    /// Root Admin SKI used as machine-credential issuer (plugin `getCredential`).
+    /// Local Root Admin key (IDR). Billing v1 issues machines from the Entity CA SKI.
     pub admin_ski: Option<String>,
     pub admin_private_jwk: Option<Value>,
     pub admin_public_jwk: Option<Value>,
@@ -213,6 +213,9 @@ pub fn prepare_client_keyed_kickstart(
     let request = KickstartRequest {
         entity_id,
         package: package.to_ascii_lowercase(),
+        paying_party_id: None,
+        member_id: None,
+        root_ski: Some(material.ski.clone()),
         root_public_jwk: Some(strip_private_jwk(&ca.public_jwk)),
         admin_public_jwk: Some(strip_private_jwk(&admin.public_jwk)),
         root_credential: Some(root_credential),
@@ -220,6 +223,65 @@ pub fn prepare_client_keyed_kickstart(
         ca_cert_pem: Some(ca.ca_cert_pem),
     };
     Ok((material, request))
+}
+
+/// Rebuild a register body from a CA already on disk (retry after HTTP failure).
+pub fn kickstart_request_from_material(
+    ca: &EntityCaMaterial,
+    package: &str,
+) -> Result<KickstartRequest> {
+    let pkg = parse_package(package)?;
+    let permissions = with_entity_scope(kickstart_permissions(package), &ca.entity_id);
+    let (not_before, not_after) = validity_rfc3339(365);
+    let root_unsigned = unsigned_credential(
+        CredentialKind::EntityRoot,
+        &ca.entity_id,
+        ca.ski.clone(),
+        strip_private_jwk(&ca.public_jwk),
+        ca.ski.clone(),
+        permissions.clone(),
+        not_before.clone(),
+        not_after.clone(),
+        None,
+        None,
+        Some(pkg.clone()),
+    );
+    let root_credential = sign_credential(root_unsigned, &ca.private_jwk)?;
+    let admin_credential = match (
+        ca.admin_ski.as_ref(),
+        ca.admin_private_jwk.as_ref(),
+        ca.admin_public_jwk.as_ref(),
+    ) {
+        (Some(ski), Some(_priv), Some(pub_jwk)) => {
+            let unsigned = unsigned_credential(
+                CredentialKind::RootAdmin,
+                &ca.entity_id,
+                ski.clone(),
+                strip_private_jwk(pub_jwk),
+                ca.ski.clone(),
+                permissions,
+                not_before,
+                not_after,
+                None,
+                Some(String::new()),
+                Some(pkg),
+            );
+            Some(sign_credential(unsigned, &ca.private_jwk)?)
+        }
+        _ => None,
+    };
+    Ok(KickstartRequest {
+        entity_id: ca.entity_id.clone(),
+        package: package.to_ascii_lowercase(),
+        paying_party_id: None,
+        member_id: None,
+        root_ski: Some(ca.ski.clone()),
+        root_public_jwk: Some(strip_private_jwk(&ca.public_jwk)),
+        admin_public_jwk: ca.admin_public_jwk.as_ref().map(strip_private_jwk),
+        root_credential: Some(root_credential),
+        admin_credential,
+        ca_cert_pem: Some(ca.ca_cert_pem.clone()),
+    })
 }
 
 /// Persist CA (+ admin issuer) returned by server-keygen kickstart.
@@ -299,12 +361,15 @@ fn validity_rfc3339(days: i64) -> (String, String) {
 }
 
 impl EntityCaMaterial {
+    /// Billing registers a `root_admin` device at `rootSki` (the Entity CA).
+    /// `enroll-approve` looks up `issuerSki` in `devices` — that is the CA, not
+    /// the local admin keypair.
     pub fn issuer_ski(&self) -> &str {
-        self.admin_ski.as_deref().unwrap_or(&self.ski)
+        &self.ski
     }
 
     pub fn issuer_private_jwk(&self) -> &Value {
-        self.admin_private_jwk.as_ref().unwrap_or(&self.private_jwk)
+        &self.private_jwk
     }
 }
 
@@ -403,8 +468,14 @@ pub async fn approve_enrollment(
         not_after_days,
     )?;
 
+    let member_id = if client.auth_token().is_some() {
+        Some(client.billing_party_ids().await?.member_id)
+    } else {
+        None
+    };
     let req = EnrollApproveRequest {
         enroll_id,
+        member_id,
         leaf_pem: signed.leaf_pem,
         chain_pem: signed.chain_pem,
         credential: signed.credential,
@@ -453,7 +524,9 @@ pub fn issue_machine_leaf(
     let not_after = (now + Duration::days(not_after_days))
         .format(&Rfc3339)
         .unwrap_or_else(|_| now.to_string());
-    let perms = permissions.unwrap_or_else(|| default_machine_permissions(&machine_name));
+    let perms = permissions.unwrap_or_else(|| {
+        with_entity_scope(default_machine_permissions(&machine_name), entity_id)
+    });
     let (issuer_ski, issuer_jwk) = (ca.issuer_ski().to_string(), ca.issuer_private_jwk().clone());
     let unsigned = unsigned_machine_credential(
         entity_id,
@@ -513,6 +586,8 @@ mod tests {
             CredentialKind::RootAdmin
         );
         assert!(ca.admin_ski.is_some());
+        assert_eq!(ca.issuer_ski(), ca.ski);
+        assert_ne!(ca.admin_ski.as_deref(), Some(ca.ski.as_str()));
     }
 
     #[tokio::test]

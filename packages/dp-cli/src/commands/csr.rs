@@ -54,27 +54,24 @@ pub async fn run(args: CsrArgs, cfg: &ResolvedConfig) -> dp_rust_sdk::Result<()>
     }) {
         CsrCommand::List { status } => list_cmd(cfg, &org, &status).await,
         CsrCommand::Show { selector, status } => {
-            let item = load_selector(cfg, &org, &status, &selector).await?;
-            let id = enrollment_id(&item)?;
-            admin::show_cmd(cfg, id, Some(&org)).await
+            let id = resolve_id(cfg, &org, &status, &selector).await?;
+            admin::show_cmd(cfg, &id, Some(&org)).await
         }
         CsrCommand::Approve {
             selector,
             yes,
             status,
         } => {
-            let item = load_selector(cfg, &org, &status, &selector).await?;
-            let id = enrollment_id(&item)?;
-            admin::approve_cmd(cfg, id, Some(&org), yes).await
+            let id = resolve_id(cfg, &org, &status, &selector).await?;
+            admin::approve_cmd(cfg, &id, Some(&org), yes).await
         }
         CsrCommand::Reject {
             selector,
             yes,
             status,
         } => {
-            let item = load_selector(cfg, &org, &status, &selector).await?;
-            let id = enrollment_id(&item)?;
-            admin::reject_cmd(cfg, id, yes).await
+            let id = resolve_id(cfg, &org, &status, &selector).await?;
+            admin::reject_cmd(cfg, &id, yes).await
         }
     }
 }
@@ -98,6 +95,32 @@ async fn list_cmd(cfg: &ResolvedConfig, org: &str, status: &str) -> dp_rust_sdk:
         cfg.product_name
     );
     Ok(())
+}
+
+/// Numbered inbox (`1`) needs `enroll-list`. An enroll id does not — billing
+/// v1 has no list/get, and the CSR lives in this state dir after `register`.
+fn is_list_index(selector: &str) -> bool {
+    let trimmed = selector.trim();
+    !trimmed.is_empty() && trimmed.chars().all(|c| c.is_ascii_digit())
+}
+
+async fn resolve_id(
+    cfg: &ResolvedConfig,
+    org: &str,
+    status: &str,
+    selector: &str,
+) -> dp_rust_sdk::Result<String> {
+    if is_list_index(selector) {
+        let item = load_selector(cfg, org, status, selector).await?;
+        return enrollment_id(&item).map(str::to_string);
+    }
+    let id = selector.trim();
+    if id.is_empty() {
+        return Err(dp_rust_sdk::Error::admin(
+            "pass a list index (1) or an enroll id",
+        ));
+    }
+    Ok(id.to_string())
 }
 
 async fn load_selector(
@@ -199,5 +222,13 @@ mod tests {
             "enr_2"
         );
         assert!(resolve_enroll_selector(&list, "missing").is_err());
+    }
+
+    #[test]
+    fn uuid_is_not_a_list_index() {
+        assert!(is_list_index("1"));
+        assert!(is_list_index("12"));
+        assert!(!is_list_index("c080037c-ddd3-4c30-b279-c2d8a81fa5fe"));
+        assert!(!is_list_index("enr_1"));
     }
 }

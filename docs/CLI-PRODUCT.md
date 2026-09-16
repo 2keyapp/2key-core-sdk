@@ -1,8 +1,8 @@
 # Product CLI (`idr`) — spec
 
-This is the source of truth for **how the branded binary should feel**. The Better Auth `delegate-permissions` plugin is **frozen** except enroll-invite (Phase 4). All other work is CLI + `dp-rust-sdk` + a separate agent binary.
+This is the source of truth for **how the branded binary should feel**. Billing owns Machine AuthN HTTP (`/api/v1/machine-authn/*`) and `devices`. CSR **approve** is **organization owner only**. Generic CLI source is `dp-cli`; IDR stamps it in sibling `idr-agent`.
 
-Wire protocol, PKI, and HTTP paths stay in [RUST-CLI-SDK-SPEC.md](./RUST-CLI-SDK-SPEC.md). This document is the product layer: **what** the human types, **why** that command exists, **how** it maps onto the plugin, and the **flow** on the machine.
+Wire protocol, PKI, and HTTP paths stay in [RUST-CLI-SDK-SPEC.md](./RUST-CLI-SDK-SPEC.md). This document is the product layer: **what** the human types, **why** that command exists, **how** it maps onto billing Machine AuthN, and the **flow** on the machine.
 
 Inspired by `/home/dev2t/Documents/cli.txt` (`gh`-like `signup` / `register` / numbered CSR approve / default-as-service). That note is UX intent, not an API redesign.
 
@@ -16,17 +16,17 @@ Three jobs, in this order of identity:
 
 | Job | Who | AuthN | AuthZ |
 |-----|-----|--------|--------|
-| Human onboarding | Admin in a browser | Better Auth session (SSO / email) | Principal grant + Root Admin bind |
+| Human onboarding | Org **owner** (SSO) | Better Auth session (SSO / email) | Membership + Root Admin bind |
 | Machine enrollment | The device | PKCS#10 CSR → Platform-endorsed leaf | CapabilityCredential issued at approve |
 | Machine runtime | Target/Source agent | mTLS to the terminator (HAProxy `ca-file` = Platform Root) | First app frame `dp.credential.v1` |
 
 The CLI today is a **lifecycle tool** (jobs 1–2). Job 3 is the separate `idr-agent` / `dp-agent` binary (`--keep` / `--detach`), not a clap flag on the lifecycle CLI.
 
-### Non-goals (plugin stays as-is)
+### Non-goals (billing Machine AuthN stays as-is)
 
-- Do not add “public JWK attached to PKCE” on the plugin. PKCE/device-code is Better Auth. Kickstart is `POST /delegate-permissions/kickstart-entity` with **client-generated** Entity CA + Root Admin material.
+- Do not add “public JWK attached to PKCE” on billing. PKCE/device-code is Better Auth. Kickstart is `POST /api/v1/machine-authn/register` with **client-generated** Entity CA + Root Admin material (public cert only).
 - Do not send machine private keys. Ever.
-- Do not use `laptop1.slug.org` on the wire. Plugin host form is `{path}--{entityId}` (see plugin `names.ts`). Display suffixes are product cosmetics, stripped before HTTP.
+- Do not use `laptop1.slug.org` on the wire. Host form is `{path}--{entityId}`. Display suffixes are product cosmetics, stripped before HTTP.
 - Do not make Better Auth terminate client certificates. HAProxy (or equivalent) does mTLS AuthN.
 
 ---
@@ -73,9 +73,9 @@ Power commands stay. Product commands wrap the same SDK (`register` = enroll, `c
 |------------|-------------|
 | `laptop1` + org `acme.com` | `host: "laptop1--acme.com"` |
 | `mob1` | `mob1--acme.com` |
-| Optional product suffix `.idr.to` in UI | Strip before plugin (documented in public plugin docs) |
+| Optional product suffix `.idr.to` in UI | Strip before HTTP |
 
-**Why `--`:** plugin `parseMachineHost` and catalog `dns_prefix` attenuation. Dots inside the **path** are hierarchy (`db1.us-east--acme.com`), not a DNS zone of the SaaS.
+**Why `--`:** `parseMachineHost` and catalog `dns_prefix` attenuation. Dots inside the **path** are hierarchy (`db1.us-east--acme.com`), not a DNS zone of the SaaS.
 
 ---
 
@@ -87,7 +87,7 @@ Power commands stay. Product commands wrap the same SDK (`register` = enroll, `c
 │   ├── login                  # Phase 2 — Better Auth device/OAuth → session file
 │   ├── status                 # Phase 2 — who is the session user
 │   └── logout                 # Phase 2
-├── signup                     # Phase 3 — login (if needed) + kickstart-entity
+├── signup                     # Phase 3 — login (if needed) + machine-authn/register
 │   ├── [--personal]           # entityId = session email
 │   ├── [--domain <name>]      # entityId = domain, package=enterprise
 │   └── [--brand <slug>]       # entityId = brand slug, package=enterprise
@@ -127,29 +127,30 @@ Installer (“copy `idr.exe` onto PATH”) is packaging, not this crate.
 
 **Why**
 
-`cli.txt` wants `gh`-shaped verbs and “Approve 2”, not enroll UUIDs. The plugin already has `enroll-list` + `enroll-approve`. Indexing is a CLI presentation concern. Doing this first proves the mapping without inventing HTTP.
+`cli.txt` wants `gh`-shaped verbs and “Approve 2”, not enroll UUIDs. Billing has `enroll-approve`; `enroll-list` is SDK-forward until the HTTP surface catches up. Indexing is a CLI presentation concern.
 
 **How**
 
 1. Device: `idr register --org acme.com --name laptop1`
    - Generate Ed25519 in `identity/machine.key`.
    - CSR CN/SAN = `laptop1--acme.com`.
-   - `POST /delegate-permissions/enroll-create` `{ entityId, host, kind, csrPem }`.
+   - `POST /api/v1/machine-authn/enroll-create` `{ entityId, host, kind, csrPem }`.
    - Persist `enrollId` + `pullToken` in `state.json`, status pending.
-2. Admin (other state dir, or same host for tests): `idr csr list --org acme.com`
-   - `GET /delegate-permissions/enroll-list?entityId=acme.com&status=pending`.
+2. **Owner** (other state dir, or same host for tests): `idr csr list --org acme.com`
+   - `GET /api/v1/machine-authn/enroll-list` (when the server exposes list) or list via admin.
    - Print `#`, host, status, enroll id (truncated).
-3. Admin: `idr csr approve 2 --org acme.com`
+3. **Owner:** `idr csr approve 2 --org acme.com`
    - Load row 2 (stable order: enroll id).
-   - Load Entity CA from `admin/acme.com/`.
-   - Sign CSR locally, `POST /enroll-approve`.
+   - Load Entity CA from `admin/acme.com/` (**private key stays on this laptop**).
+   - Sign CSR locally, `POST /api/v1/machine-authn/enroll-approve`.
+   - Billing `OWNER_REQUIRED` — other `admin` members cannot approve.
    - Server Platform-cosigns; device `idr machine pull` (or `--wait`).
 
 **Org inference:** if `--org` omitted and `$DP_STATE_DIR/admin/` contains exactly one entity, use it. Otherwise require `--org`.
 
 **Index vs id:** if the selector is all digits, treat as 1-based index into the **current** filtered list. Otherwise treat as `enrollId`. Reject out-of-range with the printed table.
 
-**Localhost bypass:** `register --local` requires Entity CA in this state dir (same as `gen`). No new plugin path.
+**Localhost bypass:** `register --local` requires Entity CA in this state dir (same as `gen`). Billing v1 has no `enroll-instant` — use the queued path.
 
 ---
 
@@ -163,9 +164,9 @@ Replace pasted `DP_AUTH_TOKEN` for humans. Store a session next to keys. `auth s
 
 Kickstart, CSR approve, and signup all need a Better Auth **session**. Today operators paste a cookie. `gh auth login` is the UX we want. That session is **human AuthN**. It is not mTLS and not a machine key.
 
-**How (do not change `delegate-permissions`)**
+**How (do not change billing Machine AuthN)**
 
-Preferred: RFC 8628 device authorization (`POST /device/code`, poll `/device/token`). Token is Better Auth `session.token` as `access_token`. Send it as `Authorization: Bearer` — the product auth server should enable **`deviceAuthorization()` and `bearer()`** next to `delegatePermissions()`.
+Preferred: RFC 8628 device authorization (`POST {auth}/device/code`, poll `{auth}/device/token`). `{auth}` is `DP_AUTH_URL` (default same host as billing with `/api/auth`). Token is Better Auth `session.token` as `access_token`. Send it as `Authorization: Bearer` — the product auth server should enable **`deviceAuthorization()` and `bearer()`**.
 
 ```text
 idr auth login
@@ -178,7 +179,7 @@ idr auth login
 
 `--paste`: skip device flow, store a browser cookie (`better-auth.session_token=…`) or Bearer token. Used when the auth server has no device plugin; `auth login` also falls back to paste on 4xx from `/device/code` if stdin is a TTY (`--no-paste` disables that).
 
-Precedence: `--token` / `DP_AUTH_TOKEN` **wins** over the session file. Machine `register` (non-`--local`) still does not need a session.
+Precedence: `--token` / `DP_AUTH_TOKEN` **wins** over the session file. Billing v1 puts `enroll-create` behind `requireBillingAuth`, so `register` needs a session (or token) on that server.
 
 **Product auth config (outside this crate):** enable `deviceAuthorization()` + `bearer()`. If `validateClient` is set, allow `{product}-cli` (or `DP_CLIENT_ID`).
 
@@ -202,7 +203,7 @@ Flags are mutually exclusive. Requires `auth login`. Always client-keyed (`--ser
 
 **Why**
 
-`cli.txt`: register org from email; different signup for domain vs brand slugs. The plugin already takes `entityId` + `package`. Email-as-entity is the **personal** package (`host--email` in IDR notes). Domain/brand are **enterprise** `entityId` strings. There is no slug registry in DP; uniqueness is `createEntity` conflict (`ENTITY_EXISTS`).
+`cli.txt`: register org from email; different signup for domain vs brand slugs. Billing `register` takes `entityId` + `package` (plus `payingPartyId`, `memberId`, `rootSki`, `caCertPem`). Email-as-entity is the **personal** package (`host--email` in IDR notes). Domain/brand are **enterprise** `entityId` strings. Uniqueness is a paying-party conflict (`Machine AuthN already registered`).
 
 **How**
 
@@ -214,9 +215,9 @@ Flags are mutually exclusive. Requires `auth login`. Always client-keyed (`--ser
      --domain X / --brand X → X.lower()
 4. Same path as org init (client-keyed kickstart):
      generate Entity CA + Root Admin locally
-     POST /kickstart-entity { entityId, package, rootPublicJwk, adminPublicJwk,
-                              rootCredential, adminCredential, caCertPem }
-5. Bind is server-side: session.user.id → Root Admin SKI.
+     POST /api/v1/machine-authn/register { entityId, package, caCertPem, rootSki,
+                                          payingPartyId, memberId, rootCredential? }
+5. Bind is server-side: owner member → Root Admin device row.
 6. Print: org id, ca ski, “next: idr register --name laptop1 --org <entityId>”
 ```
 
@@ -232,26 +233,27 @@ Flags are mutually exclusive. Requires `auth login`. Always client-keyed (`--ser
 
 Upstream admin invites a downstream **device into an org**: a token the device redeems so its CSR lands in that org's inbox. The device still chooses its own unique name at `register`.
 
-**Why the plugin needed a table**
+**Why billing needed a table**
 
-Pull enroll is an inbox: anyone who can hit `enroll-create` submits a CSR. An invite is a secret that binds the CSR to one entity so `csr list --org` shows the relevant requests. It does **not** pre-claim a hostname.
+Pull enroll is an inbox: a member who can hit `enroll-create` submits a CSR. An invite is a secret that binds the CSR to one paying party so the owner’s inbox shows the relevant requests. It does **not** pre-claim a hostname. Invite create is **owner only**.
 
-**Plugin contract**
+**HTTP contract**
 
 ```text
-POST /delegate-permissions/enroll-invite
-  session required
-  body: { entityId, expiresIn?, maxUses? }
-  → { inviteId, inviteToken, entityId, expiresAt, maxUses }
-  expiresAt always set (plugin `inviteExpiresIn`, default 7d; cap `inviteMaxExpiresIn`, default 30d). maxUses from plugin `inviteMaxUses` (default 1); 0 = unlimited until expiry.
+POST /api/v1/machine-authn/enroll-invite
+  session required; OWNER_REQUIRED
+  body: { payingPartyId, memberId, expiresInSeconds?, maxUses?, kind? }
+  → { inviteId, inviteToken, … }
+  maxUses default 1; omit expiresInSeconds for server default.
 
-GET /delegate-permissions/enroll-invite?inviteToken=
+GET /api/v1/machine-authn/enroll-invite?payingPartyId=&inviteToken=
   no session; does not consume a use
-  → { entityId, expiresAt, maxUses }
+  → { entityId, expiresAt, maxUses, … }
 
-POST /delegate-permissions/enroll-create
+POST /api/v1/machine-authn/enroll-create
+  session required (billing v1)
   optional: inviteToken
-  entityId from the invite; host/name from the device
+  host/name from the device
   reject wrong org / expired / exhausted (whichever hits first)
 ```
 
@@ -325,10 +327,10 @@ idr-agent --detach
                     └──────────────┬──────────────────────┘
                                    │ DP_AUTH_TOKEN / session file
                                    ▼
-                    delegate-permissions
+                    billing /api/v1/machine-authn
                     ┌─────────────────────────────────────┐
- Admin CLI          │  kickstart-entity                    │
- signup / org init  │  enroll-approve (signs with Entity CA)│
+   Owner CLI        │  register (Org Root CA public cert) │
+ signup / org init  │  enroll-approve (signs with Entity CA; OWNER_REQUIRED)│
                     └──────────────┬──────────────────────┘
                                    │
  Device CLI         │  enroll-create (CSR)                 │
@@ -345,7 +347,7 @@ idr-agent --detach
                     first frame dp.credential.v1  ← machine AuthZ
 ```
 
-**Test mapping:** plugin Vitest = HTTP boxes. `openssl verify` = crypto of the endorsed leaf. `openssl s_client` = HAProxy box. Presentation unit test = first frame. There is still no in-repo HAProxy fixture.
+**Test mapping:** `cargo test` + billing unit tests = HTTP boxes. `openssl verify` = crypto of the endorsed leaf. `openssl s_client` = HAProxy box. Presentation unit test = first frame. There is still no in-repo HAProxy fixture. See [TEST-USECASES.md](./TEST-USECASES.md).
 
 ---
 
@@ -356,12 +358,12 @@ idr-agent --detach
 idr register --org acme.com --name laptop1
 # → submitted laptop1--acme.com, enroll id printed
 
-# Admin
+# Owner
 idr csr list --org acme.com
 # →  1  laptop1--acme.com  pending  <enrollId>
 
 idr csr approve 1 --org acme.com --yes
-# → approved, platform cosign received
+# → approved, platform cosign received (fails if caller is not owner)
 
 # Device
 idr machine pull
@@ -369,15 +371,7 @@ idr machine whoami
 # → laptop1--acme.com
 ```
 
-Localhost:
-
-```bash
-idr signup --domain acme.com   # or: idr org init acme.com
-idr register --local --org acme.com --name laptop1
-# → enrolled (enroll-instant)
-```
-
-Power surface still works: `machine enroll`, `admin machine approve <id>`.
+Localhost instant enroll (`register --local` / `gen`) is CLI support for `enroll-instant`. Billing v1 greenfield implements the **queued** path only (`enroll-create` → owner approve → pull). Use §7 queued flow against a live billing VM.
 
 ---
 

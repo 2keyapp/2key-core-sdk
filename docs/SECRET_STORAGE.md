@@ -1,13 +1,13 @@
 ﻿# App-owned secret storage (policy)
 
-**`2key-core-sdk` Rust DP packages do not persist secrets.** They accept in-memory identity / JWKs / PEMs only (`dp-rust`, `dp-rust-mtls`, `dp-rust-sdk`). TypeScript counterparts live in **`2key-browser-sdk`** with the same policy.
+**`2key-core-sdk` Rust DP packages do not persist secrets.** They accept in-memory identity / JWKs / PEMs only (`dp-rust`, `dp-rust-mtls`, `dp-rust-sdk`). TypeScript counterparts live in **`2key-billing-sdks/packages/javascript`** with the same policy.
 
 The **CLI and agent are the host** for a laptop or server: they write secrets under `$DP_STATE_DIR` (default `~/.{product}`):
 
 | Path | What |
 |------|------|
 | `identity/machine.key` | Device Ed25519 (0600). Never sent. |
-| `admin/<entity>/entity-ca.key` | Entity CA (signup / `org init`) |
+| `admin/<entity>/entity-ca.key` | Entity CA **private** (signup / `org init`). Never sent. Public cert goes to billing `paying_parties.entity_ca_cert_pem`. |
 | `session` | Human Better Auth cookie or Bearer (not a machine key) |
 
 Do not treat `$DP_STATE_DIR` as a shared vault with a Flutter app. See the table below for embed/service hosts.

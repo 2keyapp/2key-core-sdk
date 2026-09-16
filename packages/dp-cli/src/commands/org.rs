@@ -1,7 +1,8 @@
 use clap::{Args, Subcommand};
 use dp_rust_sdk::{
-    admin_ca_cert, load_entity_ca, persist_kickstart_response, prepare_client_keyed_kickstart,
-    save_entity_ca, KeyStore, KickstartRequest, ResolvedConfig, KEY_PLATFORM_CA,
+    admin_ca_cert, kickstart_request_from_material, load_entity_ca,
+    persist_kickstart_response, prepare_client_keyed_kickstart, save_entity_ca, KeyStore,
+    KickstartRequest, ResolvedConfig, KEY_PLATFORM_CA,
 };
 
 use crate::client;
@@ -53,6 +54,7 @@ pub async fn init_entity(
     let client = client(cfg);
     let store = store(cfg)?;
     let entity_id = entity_id.to_ascii_lowercase();
+    let ids = client.billing_party_ids().await?;
 
     if let Some(existing) = load_entity_ca(&store, &entity_id)? {
         println!("entity CA existing {}", existing.ski);
@@ -60,8 +62,21 @@ pub async fn init_entity(
             "  cert {}",
             cfg.state_dir.join(admin_ca_cert(&entity_id)?).display()
         );
-        let res = client.get_entity(&entity_id).await?;
-        println!("{}", serde_json::to_string_pretty(&res)?);
+        let mut request = kickstart_request_from_material(&existing, package)?;
+        request.paying_party_id = Some(ids.paying_party_id);
+        request.member_id = Some(ids.member_id);
+        match client.kickstart_entity(&request).await {
+            Ok(res) => {
+                if let Some(root_pem) = &res.platform_root_pem {
+                    store.save_string(KEY_PLATFORM_CA, root_pem)?;
+                }
+                print_kickstart(cfg, &entity_id, &existing.ski, false);
+            }
+            Err(dp_rust_sdk::Error::Http { status: 409, .. }) => {
+                println!("  already registered on server");
+            }
+            Err(err) => return Err(err),
+        }
         return Ok(());
     }
 
@@ -72,6 +87,9 @@ pub async fn init_entity(
             .kickstart_entity(&KickstartRequest {
                 entity_id: entity_id.clone(),
                 package: package.to_string(),
+                paying_party_id: Some(ids.paying_party_id),
+                member_id: Some(ids.member_id),
+                root_ski: None,
                 ..Default::default()
             })
             .await?;
@@ -80,7 +98,9 @@ pub async fn init_entity(
         return Ok(());
     }
 
-    let (material, request) = prepare_client_keyed_kickstart(&entity_id, package)?;
+    let (material, mut request) = prepare_client_keyed_kickstart(&entity_id, package)?;
+    request.paying_party_id = Some(ids.paying_party_id);
+    request.member_id = Some(ids.member_id);
     save_entity_ca(&store, &material)?;
     let res = client.kickstart_entity(&request).await?;
     if let Some(root_pem) = &res.platform_root_pem {

@@ -101,6 +101,10 @@ impl DpClient {
         &self.base_url
     }
 
+    pub(crate) fn auth_token(&self) -> Option<&str> {
+        self.auth_token.as_deref()
+    }
+
     fn rebuild_http(&mut self) -> Result<()> {
         self.http = build_http(&self.user_agent, self.client_pem.as_deref(), None)?;
         Ok(())
@@ -168,7 +172,7 @@ impl DpClient {
         Ok((status, text))
     }
 
-    async fn send_json<B: Serialize, T: DeserializeOwned>(
+    pub(crate) async fn send_json<B: Serialize, T: DeserializeOwned>(
         &self,
         method: Method,
         path: &str,
@@ -586,6 +590,8 @@ mod tests {
         let res = client
             .enroll_create(&EnrollCreateRequest {
                 entity_id: "acme.com".into(),
+                paying_party_id: None,
+                member_id: None,
                 host: "db1--acme.com".into(),
                 kind: Some(MachineKind::Target),
                 subject_ski: None,
@@ -627,6 +633,8 @@ mod tests {
         let created = client
             .enroll_invite(&EnrollInviteRequest {
                 entity_id: "acme.com".into(),
+                paying_party_id: None,
+                member_id: None,
                 kind: Some(MachineKind::Target),
                 expires_in: None,
                 max_uses: None,

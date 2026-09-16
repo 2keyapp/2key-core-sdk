@@ -5,6 +5,7 @@
 
 mod admin;
 mod agent;
+mod billing_ids;
 mod client;
 mod config;
 mod credential;
@@ -20,10 +21,12 @@ mod types;
 pub use admin::{
     admin_ca_cert, admin_ca_key, admin_ca_meta, approve_enrollment, create_entity_ca,
     csr_fingerprint, enrollment_id, fetch_enrollment, issue_machine_leaf, load_entity_ca,
-    persist_kickstart_response, prepare_client_keyed_kickstart, reject_enrollment, requester_label,
+    persist_kickstart_response, prepare_client_keyed_kickstart, kickstart_request_from_material,
+    reject_enrollment, requester_label,
     require_entity_ca, save_entity_ca, EntityCaMaterial, IssuedMachineLeaf,
 };
 pub use agent::{load_agent_identity, AgentIdentity};
+pub use billing_ids::{jwt_claim_string, jwt_payload, BillingPartyIds};
 pub use client::DpClient;
 pub use config::{default_auth_url, ResolvedConfig};
 pub use credential::{

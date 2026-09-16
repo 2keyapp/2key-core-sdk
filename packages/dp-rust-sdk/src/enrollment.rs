@@ -121,8 +121,16 @@ pub async fn enroll_machine(
         )));
     }
 
+    let (paying_party_id, member_id) = if client.auth_token().is_some() {
+        let ids = client.billing_party_ids().await?;
+        (Some(ids.paying_party_id), Some(ids.member_id))
+    } else {
+        (None, None)
+    };
     let req = EnrollCreateRequest {
         entity_id: identity.entity_id.clone(),
+        paying_party_id,
+        member_id,
         host: host.clone(),
         kind: Some(params.kind),
         subject_ski: Some(generated.ski.clone()),
