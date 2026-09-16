@@ -14,6 +14,7 @@ use dp_rust_sdk::ResolvedConfig;
 pub fn print_version(cfg: &ResolvedConfig) {
     println!("{} {}", cfg.product_name, env!("CARGO_PKG_VERSION"));
     println!("backend  {}", cfg.backend_url);
+    println!("auth     {}", cfg.auth_url);
     println!("state    {}", cfg.state_dir.display());
     println!("separator {:?}", cfg.separator);
     println!("client   {}", cfg.client_id);

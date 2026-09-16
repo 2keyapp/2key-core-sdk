@@ -423,6 +423,7 @@ mod tests {
                 action: "machine.connect".into(),
                 scope: json!({"name":"db1"}),
                 delegable: false,
+                effect: None,
             }],
             zone: None,
             host: Some("db1--acme.com".into()),

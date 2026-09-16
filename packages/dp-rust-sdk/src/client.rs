@@ -9,6 +9,7 @@ use reqwest::{Client, Method, StatusCode};
 use rustls::ClientConfig as RustlsClientConfig;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::Arc;
 
 use crate::error::{Error, Result};
 use crate::keystore::{self, KeyStore};

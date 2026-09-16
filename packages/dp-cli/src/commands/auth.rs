@@ -10,7 +10,7 @@ use dp_rust_sdk::{
     delete_session, load_session, save_session, DeviceCodeResponse, SessionUser, StoredSession,
 };
 
-use crate::client;
+use crate::auth_client;
 use crate::store;
 
 #[derive(Args, Debug)]
@@ -83,7 +83,7 @@ async fn login(
         }
     };
 
-    let authed = client(cfg).with_auth(&session.to_client_auth());
+    let authed = auth_client(cfg).with_auth(&session.to_client_auth());
     match authed.get_session().await {
         Ok(Some(info)) => {
             if let Some(user) = info.user {
@@ -118,7 +118,7 @@ async fn device_login(
     client_id: &str,
     no_browser: bool,
 ) -> dp_rust_sdk::Result<StoredSession> {
-    let http = client(cfg);
+    let http = auth_client(cfg);
     let code: DeviceCodeResponse = match http
         .device_code(client_id, Some("openid profile email"))
         .await
@@ -179,7 +179,7 @@ async fn status(cfg: &dp_rust_sdk::ResolvedConfig) -> dp_rust_sdk::Result<()> {
             println!("user     {id}");
         }
     }
-    let http = client(cfg);
+    let http = auth_client(cfg);
     match http.get_session().await? {
         Some(info) => {
             if let Some(user) = info.user {
@@ -196,7 +196,7 @@ async fn status(cfg: &dp_rust_sdk::ResolvedConfig) -> dp_rust_sdk::Result<()> {
 async fn logout(cfg: &dp_rust_sdk::ResolvedConfig) -> dp_rust_sdk::Result<()> {
     let store = store(cfg)?;
     if cfg.auth_token.is_some() {
-        let _ = client(cfg).sign_out().await;
+        let _ = auth_client(cfg).sign_out().await;
     }
     delete_session(&store)?;
     println!(

@@ -4,7 +4,7 @@ use clap::{ArgGroup, Args};
 use console::style;
 use dp_rust_sdk::{load_session, ResolvedConfig};
 
-use crate::client;
+use crate::auth_client;
 use crate::commands::org;
 use crate::store;
 
@@ -131,7 +131,7 @@ fn require_session(cfg: &ResolvedConfig) -> dp_rust_sdk::Result<()> {
 }
 
 async fn session_email(cfg: &ResolvedConfig) -> dp_rust_sdk::Result<String> {
-    let http = client(cfg);
+    let http = auth_client(cfg);
     if let Some(info) = http.get_session().await? {
         if let Some(email) = info.user.and_then(|u| u.email).filter(|e| !e.is_empty()) {
             return Ok(email);

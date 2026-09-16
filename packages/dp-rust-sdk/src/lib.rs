@@ -25,7 +25,7 @@ pub use admin::{
 };
 pub use agent::{load_agent_identity, AgentIdentity};
 pub use client::DpClient;
-pub use config::ResolvedConfig;
+pub use config::{default_auth_url, ResolvedConfig};
 pub use credential::{
     canonical_credential_payload, default_machine_permissions, kickstart_permissions,
     personal_root_permissions, root_admin_permissions, sign_credential, unsigned_credential,

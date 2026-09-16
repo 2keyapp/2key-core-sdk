@@ -6,6 +6,10 @@ license.workspace = true
 description = "CLI for Delegate Permissions machine certificate lifecycle"
 repository.workspace = true
 
+[lib]
+name = "dp_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "dp-cli"
 path = "src/main.rs"

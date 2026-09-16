@@ -55,6 +55,7 @@ pub fn default_machine_permissions(machine_name: &str) -> Vec<Capability> {
         action: "machine.connect".into(),
         scope: json!({ "name": machine_name }),
         delegable: false,
+        effect: None,
     }]
 }
 
@@ -114,6 +115,7 @@ fn cap(action: &str, scope: Value, delegable: bool) -> Capability {
         action: action.into(),
         scope,
         delegable,
+        effect: None,
     }
 }
 
