@@ -394,7 +394,7 @@ async fn renew_cmd(cfg: &ResolvedConfig, yes: bool) -> dp_rust_sdk::Result<()> {
         return Ok(());
     }
     let ca = require_entity_ca(&store, &state.entity_id)?;
-    let client = client(cfg).with_stored_mtls(&store)?;
+    let client = client(cfg).with_optional_stored_mtls(&store);
     let updated = renew_machine(&client, &store, &ca, &cfg.separator, 365).await?;
     println!(
         "{} {}",
@@ -429,7 +429,7 @@ async fn decommission_cmd(
         println!("cancelled");
         return Ok(());
     }
-    let client = client(cfg).with_stored_mtls(&store)?;
+    let client = client(cfg).with_optional_stored_mtls(&store);
     let updated = decommission_machine(&client, &store, reason).await?;
     println!(
         "{} {}",

@@ -127,7 +127,7 @@ Installer (“copy `idr.exe` onto PATH”) is packaging, not this crate.
 
 **Why**
 
-`cli.txt` wants `gh`-shaped verbs and “Approve 2”, not enroll UUIDs. Billing has `enroll-approve`; `enroll-list` is SDK-forward until the HTTP surface catches up. Indexing is a CLI presentation concern.
+`cli.txt` wants `gh`-shaped verbs and “Approve 2”, not enroll UUIDs. Billing exposes `enroll-list` / `enroll-get` / `enroll-approve` / `enroll-reject`. Numbered “approve 2” is a CLI presentation concern.
 
 **How**
 
@@ -137,7 +137,7 @@ Installer (“copy `idr.exe` onto PATH”) is packaging, not this crate.
    - `POST /api/v1/machine-authn/enroll-create` `{ entityId, host, kind, csrPem }`.
    - Persist `enrollId` + `pullToken` in `state.json`, status pending.
 2. **Owner** (other state dir, or same host for tests): `idr csr list --org acme.com`
-   - `GET /api/v1/machine-authn/enroll-list` (when the server exposes list) or list via admin.
+   - `GET /api/v1/machine-authn/enroll-list?entityId=` (owner JWT). Includes `csrPem` for remote approve.
    - Print `#`, host, status, enroll id (truncated).
 3. **Owner:** `idr csr approve 2 --org acme.com`
    - Load row 2 (stable order: enroll id).

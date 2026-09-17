@@ -97,8 +97,7 @@ async fn list_cmd(cfg: &ResolvedConfig, org: &str, status: &str) -> dp_rust_sdk:
     Ok(())
 }
 
-/// Numbered inbox (`1`) needs `enroll-list`. An enroll id does not — billing
-/// v1 has no list/get, and the CSR lives in this state dir after `register`.
+/// Numbered inbox (`1`) needs `enroll-list`. An enroll id goes to enroll-get.
 fn is_list_index(selector: &str) -> bool {
     let trimmed = selector.trim();
     !trimmed.is_empty() && trimmed.chars().all(|c| c.is_ascii_digit())
