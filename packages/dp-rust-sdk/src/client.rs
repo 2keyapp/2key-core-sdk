@@ -82,19 +82,32 @@ impl DpClient {
 
     /// Present the locally stored machine leaf (or chain) + private key.
     pub fn with_stored_mtls(self, store: &impl KeyStore) -> Result<Self> {
-        let key = store
-            .load_string(keystore::KEY_MACHINE_KEY)?
-            .ok_or_else(|| {
-                Error::lifecycle("missing identity/machine.key — cannot authenticate with mTLS")
-            })?;
-        let cert = store
-            .load_string(keystore::KEY_CHAIN)?
-            .filter(|s| !s.trim().is_empty())
-            .or(store.load_string(keystore::KEY_MACHINE_CRT)?)
-            .ok_or_else(|| {
-                Error::lifecycle("missing identity/machine.crt — enroll or pull first")
-            })?;
+        let (cert, key) = stored_client_identity(store)?;
         self.with_client_cert(&cert, &key)
+    }
+
+    /// Attach stored machine cert when the TLS stack accepts it.
+    ///
+    /// Ed25519 identities often fail `reqwest::Identity::from_pem` (native-tls).
+    /// Billing v1 authorizes renew/decommission with the owner JWT, so a failed
+    /// attach must not block the request.
+    pub fn with_optional_stored_mtls(mut self, store: &impl KeyStore) -> Self {
+        let Ok((cert, key)) = stored_client_identity(store) else {
+            return self;
+        };
+        let mut pem = String::new();
+        pem.push_str(cert.trim());
+        pem.push('\n');
+        pem.push_str(key.trim());
+        pem.push('\n');
+        match build_http(&self.user_agent, Some(pem.as_bytes()), None) {
+            Ok(http) => {
+                self.client_pem = Some(pem.into_bytes());
+                self.http = http;
+                self
+            }
+            Err(_) => self,
+        }
     }
 
     pub fn base_url(&self) -> &str {
@@ -200,7 +213,10 @@ impl DpClient {
             return serde_json::from_str("null")
                 .map_err(|_| Error::Message(format!("empty response from {url} ({status})")));
         }
-        serde_json::from_str(&text)
+        let raw: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| Error::Message(format!("JSON from {url}: {e}: {text}")))?;
+        let value = raw.get("data").cloned().unwrap_or(raw);
+        serde_json::from_value(value)
             .map_err(|e| Error::Message(format!("JSON from {url}: {e}: {text}")))
     }
 
@@ -393,7 +409,7 @@ impl DpClient {
         entity_id: &str,
         status: Option<&str>,
     ) -> Result<Vec<CredentialListItem>> {
-        let status = status.filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("all"));
+        let status = credential_list_status_param(status);
         let mut query = vec![("entityId", entity_id)];
         if let Some(status) = status {
             query.push(("status", status));
@@ -478,6 +494,32 @@ impl DpClient {
     }
 }
 
+fn stored_client_identity(store: &impl KeyStore) -> Result<(String, String)> {
+    let key = store
+        .load_string(keystore::KEY_MACHINE_KEY)?
+        .ok_or_else(|| {
+            Error::lifecycle("missing identity/machine.key — cannot authenticate with mTLS")
+        })?;
+    let cert = store
+        .load_string(keystore::KEY_CHAIN)?
+        .filter(|s| !s.trim().is_empty())
+        .or(store.load_string(keystore::KEY_MACHINE_CRT)?)
+        .ok_or_else(|| {
+            Error::lifecycle("missing identity/machine.crt — enroll or pull first")
+        })?;
+    Ok((cert, key))
+}
+
+/// Billing stores decommissioned machines as `revoked` + `revokedReason`.
+fn credential_list_status_param(status: Option<&str>) -> Option<&str> {
+    let status = status.filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case("all"))?;
+    if status.eq_ignore_ascii_case("decommissioned") {
+        Some("revoked")
+    } else {
+        Some(status)
+    }
+}
+
 fn build_http(
     user_agent: &str,
     client_pem: Option<&[u8]>,
@@ -558,8 +600,9 @@ fn parse_enroll_item(value: serde_json::Value) -> Result<EnrollListItem> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keystore::MemoryKeyStore;
     use serde_json::json;
-    use wiremock::matchers::{method, path};
+    use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
@@ -690,6 +733,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn enroll_list_unwraps_billing_success_envelope() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/machine-authn/enroll-list"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "success": true,
+                "data": {
+                    "enrollments": [{
+                        "enrollId": "e1",
+                        "entityId": "acme.com",
+                        "status": "pending",
+                        "csrPem": "CSR"
+                    }]
+                }
+            })))
+            .mount(&server)
+            .await;
+        let client = DpClient::new(&server.uri());
+        let list = client
+            .enroll_list("acme.com", Some("pending"))
+            .await
+            .unwrap();
+        assert_eq!(list[0].csr_pem.as_deref(), Some("CSR"));
+    }
+
+    #[tokio::test]
     async fn enroll_get_unwraps_enrollment_object() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -733,6 +802,53 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].ski.as_deref(), Some("abc"));
         assert_eq!(list[0].host.as_deref(), Some("db1--acme.com"));
+    }
+
+    #[test]
+    fn credential_list_maps_decommissioned_to_revoked() {
+        assert_eq!(
+            credential_list_status_param(Some("decommissioned")),
+            Some("revoked")
+        );
+        assert_eq!(credential_list_status_param(Some("active")), Some("active"));
+        assert_eq!(credential_list_status_param(Some("all")), None);
+    }
+
+    #[tokio::test]
+    async fn credential_list_sends_revoked_for_decommissioned() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/machine-authn/credential-list"))
+            .and(query_param("status", "revoked"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "credentials": [{
+                    "ski": "abc",
+                    "status": "revoked"
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = DpClient::new(&server.uri());
+        let list = client
+            .credential_list("acme.com", Some("decommissioned"))
+            .await
+            .unwrap();
+        assert_eq!(list[0].status.as_deref(), Some("revoked"));
+    }
+
+    #[test]
+    fn optional_mtls_ignores_unusable_identity() {
+        let store = MemoryKeyStore::new();
+        store
+            .save_string(keystore::KEY_MACHINE_KEY, "not-a-key")
+            .unwrap();
+        store
+            .save_string(keystore::KEY_MACHINE_CRT, "not-a-cert")
+            .unwrap();
+        let _ = DpClient::new("http://127.0.0.1:9").with_optional_stored_mtls(&store);
+        assert!(DpClient::new("http://127.0.0.1:9")
+            .with_stored_mtls(&store)
+            .is_err());
     }
 
     #[tokio::test]

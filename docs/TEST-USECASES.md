@@ -27,7 +27,7 @@ What each layer actually proves:
 
 Billing HTTP does **not** terminate client certificates. Real mTLS AuthN needs a TLS terminator that uses `GET /api/v1/machine-authn/platform-root` as `ca-file`. There is no HAProxy fixture in this repo.
 
-**Billing v1 greenfield (current server):** queued enroll only. Implemented: `register`, `enroll-create` / `approve` / `pull`, `enroll-invite`, `issue-delegate`, `assert-subset`, `platform-root`, `credential-status`. Not implemented: `enroll-instant`, `enroll-list` / `enroll-get` / `enroll-reject`, `machine-renew` / `machine-decommission`. `register --local` / `gen` therefore 404. `csr list` 404s until `enroll-list` exists — approve with the **enroll id** printed by `register`.
+**Billing v1 greenfield (current server):** queued enroll. Implemented: `register`, `enroll-create` / `approve` / `pull` / `list` / `get` / `reject`, `enroll-invite`, `issue-delegate`, `assert-subset`, `platform-root`, `credential-status` / `credential-list` / `credential-revoke`, `machine-renew` / `machine-decommission`. Not implemented: `enroll-instant`. `register --local` / `gen` therefore 404. CSR inbox: `idr csr list --org <entity>` then `idr csr approve 1 --org <entity> --yes`.
 
 Bodies on the live server require `payingPartyId` + `memberId` (session JWT via `requireBillingAuth`). The CLI still serializes the older `entityId`-centric kickstart/enroll DTOs; live register/enroll will fail until those fields are mapped from the session.
 
@@ -108,7 +108,7 @@ cd /mnt/dev-drive/docs/billing
 npm run dev    # http://localhost:3000  Auth: /api/auth  API: /api/v1
 ```
 
-Sanity: `GET /` 200, `GET /api/v1/machine-authn/platform-root` 200 (`ski` + `publicJwk`; **no PEM** — `idr platform root` will say the server did not return a PEM).
+Sanity: `GET /` 200, `GET /api/v1/machine-authn/platform-root` 200 (`ski` + `publicJwk` + `platformRootPem`). `idr platform root --output /etc/haproxy/dp-ca.pem` writes that PEM as HAProxy `ca-file`. The Host **private** key stays on billing to endorse leaves; HAProxy only needs the public root.
 
 Create an owner session: `POST /api/auth/sign-up/email` → `POST /api/auth/organization/bind` `{ "slug": "me" }` → `GET /api/auth/token`. Billing `/api/v1/*` wants that JWT as `Authorization: Bearer`, not the session cookie.
 
@@ -164,8 +164,9 @@ export DP_STATE_DIR=${DP_STATE_DIR:-$(mktemp -d /tmp/idr-state-XXXX)}
 # expect: submitted db1--smoke.test, enroll id + pending
 # (billing v1: not enroll-instant; do not pass --local)
 
-"$IDR_BIN" csr approve <enrollId> --org smoke.test --yes
-# numbered `csr list` needs enroll-list (not on billing v1 yet)
+"$IDR_BIN" csr list --org smoke.test
+"$IDR_BIN" csr approve 1 --org smoke.test --yes
+# or: "$IDR_BIN" csr approve <enrollId> --org smoke.test --yes
 # fails with OWNER_REQUIRED if the session user is not the org owner
 
 "$IDR_BIN" machine pull
@@ -234,7 +235,7 @@ DP_STATE_DIR="$DEVICE_DIR" "$IDR/target/release/idr-agent"
 # background: "$IDR/target/release/idr-agent" --keep
 ```
 
-Reject instead of approve (`enroll-reject` is SDK-forward; billing v1 may 404):
+Reject instead of approve:
 
 ```bash
 DP_STATE_DIR="$ADMIN_DIR" "$IDR_BIN" csr reject <enrollId> --org acme.com --yes
@@ -304,7 +305,7 @@ openssl s_client -connect YOUR_PEP_HOST:443 \
 
 Pass: handshake completes; peer accepted the client cert. Fail: `alert unknown ca` / handshake failure → terminator `ca-file` is not that Platform Root, or you presented `machine.crt` instead of `platform-endorsed.crt`.
 
-`idr machine renew` / `decommission` attach the stored client cert to HTTP. That only authenticates if the **URL’s TLS server** asks for a client cert. Billing v1 may 404 those routes.
+`idr machine renew` / `decommission` attach the stored client cert when the TLS stack accepts it (Ed25519 often cannot). Billing v1 authorizes those routes with the owner JWT (`OWNER_REQUIRED`), not mTLS.
 
 ---
 
@@ -399,7 +400,6 @@ SKI=$(python3 -c "import json; print(json.load(open('$STATE/state.json'))['ski']
 curl -sS -H "cookie: $DP_AUTH_TOKEN" \
   "$DP_BACKEND_URL/machine-authn/credential-status?ski=$SKI"
 
-# SDK-forward (may 404 on billing v1):
 # "$IDR_BIN" machine renew --yes
 # "$IDR_BIN" machine decommission --yes
 ```

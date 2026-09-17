@@ -81,6 +81,7 @@ enum AdminMachineCommand {
     /// List credentials for an entity
     Credentials {
         entity_id: String,
+        /// `active` | `revoked` | `renewed` | `all`. `decommissioned` maps to `revoked`.
         #[arg(long, default_value = "active")]
         status: String,
     },
@@ -213,18 +214,47 @@ pub(crate) async fn reject_cmd(
     Ok(())
 }
 
-/// Billing v1 has no enroll-get / enroll-list. After `register` on this
-/// machine the CSR is already in the keystore — owner approve uses that.
+/// Prefer enroll-get (live status). Local CSR is only a fallback when the
+/// server has no inbox row — e.g. older hosts — and must not hardcode `pending`.
 async fn load_enrollment(
     cfg: &ResolvedConfig,
     request_id: &str,
     org: Option<&str>,
 ) -> dp_rust_sdk::Result<EnrollListItem> {
     let store = store(cfg)?;
-    if let Some(local) = enrollment_from_local_store(&store, request_id, org)? {
-        return Ok(local);
+    match fetch_enrollment(&client(cfg), request_id, org).await {
+        Ok(mut item) => {
+            if item
+                .csr_pem
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
+            {
+                if let Some(local) = enrollment_from_local_store(&store, request_id, org)? {
+                    item.csr_pem = local.csr_pem;
+                }
+            }
+            Ok(item)
+        }
+        Err(err) => match enrollment_from_local_store(&store, request_id, org)? {
+            Some(local) => Ok(local),
+            None => Err(err),
+        },
     }
-    fetch_enrollment(&client(cfg), request_id, org).await
+}
+
+fn local_enroll_wire_status(status: EnrollmentStatus) -> &'static str {
+    match status {
+        EnrollmentStatus::EnrollmentSubmitted | EnrollmentStatus::PendingAdmin => "pending",
+        EnrollmentStatus::Rejected => "rejected",
+        EnrollmentStatus::Revoked | EnrollmentStatus::Decommissioned => "revoked",
+        EnrollmentStatus::Active
+        | EnrollmentStatus::Signed
+        | EnrollmentStatus::CertReceived
+        | EnrollmentStatus::CertVerified => "active",
+        other => other.as_str(),
+    }
 }
 
 fn enrollment_from_local_store(
@@ -248,7 +278,7 @@ fn enrollment_from_local_store(
                 .unwrap_or_else(|| state.entity_id.clone()),
         ),
         host: Some(state.machine_identity),
-        status: Some("pending".into()),
+        status: Some(local_enroll_wire_status(state.status).to_string()),
         kind: state.kind.map(|k| k.as_str().to_string()),
         ski: state.ski,
         csr_pem: Some(csr_pem),
@@ -356,4 +386,30 @@ async fn credentials_cmd(
         println!("{ski:<44} {host:<28} {st:<16} {kind}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_enroll_wire_status_is_not_always_pending() {
+        assert_eq!(
+            local_enroll_wire_status(EnrollmentStatus::PendingAdmin),
+            "pending"
+        );
+        assert_eq!(
+            local_enroll_wire_status(EnrollmentStatus::EnrollmentSubmitted),
+            "pending"
+        );
+        assert_eq!(local_enroll_wire_status(EnrollmentStatus::Active), "active");
+        assert_eq!(
+            local_enroll_wire_status(EnrollmentStatus::Rejected),
+            "rejected"
+        );
+        assert_eq!(
+            local_enroll_wire_status(EnrollmentStatus::Decommissioned),
+            "revoked"
+        );
+    }
 }

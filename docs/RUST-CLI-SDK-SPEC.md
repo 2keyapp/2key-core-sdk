@@ -101,8 +101,10 @@ is not used for IDR greenfield.
 | `auth status` | `{authBackend}/get-session` | GET |
 
 Billing v1 currently implements: `register`, `enroll-create` / `approve` / `pull` /
-`enroll-invite`, `issue-delegate`, `assert-subset`, `platform-root`, `credential-status`.
-Remaining rows are SDK-forward paths until the HTTP surface catches up.
+`enroll-list` / `enroll-get` / `enroll-reject`, `enroll-invite`, `issue-delegate`,
+`assert-subset`, `platform-root`, `credential-status` / `credential-list` /
+`credential-revoke`, `machine-renew` / `machine-decommission`.
+`enroll-instant` and `enroll-machine-permissions` stay unimplemented (use the queued path).
 
 Kickstart is **client-keyed** by default: the CLI generates Entity CA + Root Admin locally and POSTs public JWKs, signed credentials, and `caCertPem`. `--server-keys` on `org init` is test-only (`allowServerKeygen`).
 
