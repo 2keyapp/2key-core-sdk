@@ -869,6 +869,59 @@ pub fn sign_client_cert_from_csr(
     })
 }
 
+/// Parameters for signing a subordinate CA (e.g. an enterprise zone authority)
+/// under a parent CA.
+pub struct SignIntermediateCaParams<'a> {
+    /// Subordinate CA's Ed25519 public JWK (`x` = raw public key, base64url).
+    pub child_public_jwk: &'a serde_json::Value,
+    /// Subject CN of the issued CA (its SKI, by convention).
+    pub child_common_name: &'a str,
+    /// Parent CA's Ed25519 private JWK. Never returned; used only to sign in-process.
+    pub parent_private_jwk: &'a serde_json::Value,
+    /// Must equal the parent's subject CN, as for
+    /// `SignClientCertFromCsrParams::ca_common_name`.
+    pub parent_common_name: &'a str,
+    /// Validity in days. Default 1825, inside the parent's 3650.
+    pub not_after_days: Option<i64>,
+}
+
+/// Issue a CA certificate for `child_public_jwk`, signed by the parent CA.
+///
+/// Path length 0: the subordinate CA signs leaves, never further CAs. Leaves it
+/// signs chain as leaf → this cert → parent via `sign_client_cert_from_csr`
+/// with `ca_cert_pem` = this cert + the parent's cert.
+pub fn sign_intermediate_ca(params: SignIntermediateCaParams<'_>) -> Result<String, MtlsError> {
+    let x = params
+        .child_public_jwk
+        .get("x")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| MtlsError::Pem("child public JWK missing Ed25519 x".into()))?;
+    let raw = URL_SAFE_NO_PAD
+        .decode(x)
+        .map_err(|e| MtlsError::Base64(e.to_string()))?;
+    let raw: [u8; 32] = raw.try_into().map_err(|_| MtlsError::BadKeyLength)?;
+    VerifyingKey::from_bytes(&raw)
+        .map_err(|e| MtlsError::Rcgen(format!("invalid child public key: {e}")))?;
+
+    let parent_key_pair =
+        key_pair_from_signing_key(signing_key_from_jwk(params.parent_private_jwk)?)?;
+    let parent_cert = ca_params(params.parent_common_name)?
+        .self_signed(&parent_key_pair)
+        .map_err(|e| MtlsError::Rcgen(e.to_string()))?;
+
+    let mut child = ca_params(params.child_common_name)?;
+    child.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
+    child.not_after = child.not_before + Duration::days(params.not_after_days.unwrap_or(1825));
+    let cert = child
+        .signed_by(
+            &CsrPublicKey { raw: raw.to_vec() },
+            &parent_cert,
+            &parent_key_pair,
+        )
+        .map_err(|e| MtlsError::Rcgen(e.to_string()))?;
+    Ok(cert.pem())
+}
+
 fn load_certs(pem: &str) -> Result<Vec<CertificateDer<'static>>, MtlsError> {
     let mut reader = Cursor::new(pem.as_bytes());
     rustls_pemfile::certs(&mut reader)
@@ -1011,6 +1064,64 @@ mod tests {
         assert!(ca.ca_cert_pem.contains("BEGIN CERTIFICATE"));
         assert_eq!(ca.common_name, "DP Test CA");
         assert_eq!(ca.ski.len(), 43);
+    }
+
+    #[test]
+    fn sign_intermediate_ca_chains_zone_and_leaf_to_root() {
+        let root = create_self_signed_ca("root-ski").expect("root");
+        let zone = generate_ed25519().expect("zone key");
+        let zone_cert = sign_intermediate_ca(SignIntermediateCaParams {
+            child_public_jwk: &zone.public_jwk,
+            child_common_name: &zone.ski,
+            parent_private_jwk: &root.private_jwk,
+            parent_common_name: &root.common_name,
+            not_after_days: None,
+        })
+        .expect("sign_intermediate_ca");
+
+        assert!(verify_ed25519_cert_against_issuer(&zone_cert, &root.ca_cert_pem).unwrap());
+        assert!(!verify_ed25519_cert_against_issuer(&zone_cert, &zone_cert).unwrap());
+        assert_eq!(
+            ed25519_pubkey_from_cert_pem(&zone_cert).unwrap().to_vec(),
+            URL_SAFE_NO_PAD
+                .decode(zone.public_jwk["x"].as_str().unwrap())
+                .unwrap()
+        );
+        // basicConstraints: cA TRUE, pathLenConstraint 0.
+        let der = pem_to_der(&zone_cert, "CERTIFICATE").unwrap();
+        assert!(der
+            .windows(8)
+            .any(|w| w == [0x30, 0x06, 0x01, 0x01, 0xff, 0x02, 0x01, 0x00]));
+
+        let device = generate_key_and_csr("device-z", Some("cam--acme.example")).expect("csr");
+        let chain = format!("{}{}", zone_cert, root.ca_cert_pem);
+        let leaf = sign_client_cert_from_csr(SignClientCertFromCsrParams {
+            csr_pem: &device.csr_pem,
+            ca_cert_pem: &chain,
+            ca_private_jwk: &zone.private_jwk,
+            ca_common_name: &zone.ski,
+            ski: &device.ski,
+            host: Some("cam--acme.example"),
+            not_after_days: None,
+        })
+        .expect("leaf under zone");
+        assert!(verify_ed25519_cert_against_issuer(&leaf.leaf_pem, &zone_cert).unwrap());
+        assert!(!verify_ed25519_cert_against_issuer(&leaf.leaf_pem, &root.ca_cert_pem).unwrap());
+        assert!(leaf.chain_pem.contains(zone_cert.trim()));
+        assert!(leaf.chain_pem.contains(root.ca_cert_pem.trim()));
+    }
+
+    #[test]
+    fn sign_intermediate_ca_rejects_bad_child_key() {
+        let root = create_self_signed_ca("root-ski").expect("root");
+        let err = sign_intermediate_ca(SignIntermediateCaParams {
+            child_public_jwk: &serde_json::json!({"kty": "OKP", "crv": "Ed25519", "x": "AAAA"}),
+            child_common_name: "zone",
+            parent_private_jwk: &root.private_jwk,
+            parent_common_name: &root.common_name,
+            not_after_days: None,
+        });
+        assert!(err.is_err());
     }
 
     #[test]
