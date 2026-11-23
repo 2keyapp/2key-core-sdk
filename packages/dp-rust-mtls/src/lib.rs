@@ -26,13 +26,38 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use time::{Duration, OffsetDateTime};
 
+/// Prints `[REDACTED]` in place of a secret value.
+pub(crate) struct Redacted;
+
+impl std::fmt::Debug for Redacted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[REDACTED]")
+    }
+}
+
+/// `Debug` that never prints key material or tokens (agent docs/observability/07 R-PRIV-1).
+/// `redact` fields print `[REDACTED]`; `redact_opt` fields print `Some([REDACTED])` / `None`.
+macro_rules! redacted_debug {
+    ($ty:ident { $($field:ident),* } redact { $($secret:ident),* } redact_opt { $($opt:ident),* }) => {
+        impl ::std::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.debug_struct(stringify!($ty))
+                    $(.field(stringify!($field), &self.$field))*
+                    $(.field(stringify!($secret), &$crate::Redacted))*
+                    $(.field(stringify!($opt), &self.$opt.as_ref().map(|_| $crate::Redacted)))*
+                    .finish()
+            }
+        }
+    };
+}
+
 /// Client-held DP identity (keys stay local).
 ///
 /// `cert_pem`/`chain_pem` are optional: when a deployment issues CA-signed
 /// mTLS certs (via `sign_client_cert_from_csr`), the issued cert/chain is
 /// carried here so `materialize_mtls_client` uses it as-is instead of
 /// minting a self-signed dev certificate.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DeviceIdentity {
     pub ski: String,
     /// Ed25519 private JWK (`kty=OKP`, `crv=Ed25519`, `d`, `x`).
@@ -45,7 +70,7 @@ pub struct DeviceIdentity {
 }
 
 /// PEM cert/key ready for rustls / OpenSSL-style clients.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MtlsClientMaterial {
     /// Cert presented on the wire: the full chain when `chain_pem` is set, else the leaf alone.
     pub cert_pem: String,
@@ -57,7 +82,7 @@ pub struct MtlsClientMaterial {
 }
 
 /// Parsed client auth material for any TLS stack that accepts rustls-pki-types.
-#[derive(Debug)]
+
 pub struct LoadedClientAuth {
     pub certs: Vec<CertificateDer<'static>>,
     pub key: PrivateKeyDer<'static>,
@@ -207,7 +232,7 @@ pub fn materialize_mtls_client(identity: &DeviceIdentity) -> Result<MtlsClientMa
 /// Fresh, device-local Ed25519 keypair + PKCS#10 CSR. The private key never
 /// leaves this struct; callers should keep `private_jwk` on-device and only
 /// ship `csr_pem` to a CA.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GeneratedKeyAndCsr {
     pub ski: String,
     pub private_jwk: serde_json::Value,
@@ -216,7 +241,7 @@ pub struct GeneratedKeyAndCsr {
 }
 
 /// Self-signed Ed25519 CA (dev/test issuer for `sign_client_cert_from_csr`).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SelfSignedCa {
     pub ski: String,
     pub private_jwk: serde_json::Value,
@@ -361,7 +386,7 @@ fn ca_params(common_name: &str) -> Result<CertificateParams, MtlsError> {
 }
 
 /// Ed25519 key material for host SDKs (PEM + JWK). Private key stays on device.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GeneratedEd25519 {
     pub ski: String,
     pub private_pem: String,
@@ -1253,3 +1278,10 @@ mod tests {
         );
     }
 }
+
+redacted_debug!(DeviceIdentity { ski, credential, cert_pem, chain_pem } redact { private_jwk } redact_opt {});
+redacted_debug!(MtlsClientMaterial { cert_pem, chain_pem, ski, credential } redact { key_pem } redact_opt {});
+redacted_debug!(LoadedClientAuth { certs } redact { key } redact_opt {});
+redacted_debug!(GeneratedKeyAndCsr { ski, public_jwk, csr_pem } redact { private_jwk } redact_opt {});
+redacted_debug!(SelfSignedCa { ski, public_jwk, ca_cert_pem, common_name } redact { private_jwk } redact_opt {});
+redacted_debug!(GeneratedEd25519 { ski, public_pem, public_b64url, public_jwk } redact { private_pem, private_jwk } redact_opt {});

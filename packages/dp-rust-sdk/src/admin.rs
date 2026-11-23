@@ -24,7 +24,7 @@ use crate::types::{
     KickstartResponse,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EntityCaMaterial {
     pub entity_id: String,
     pub ski: String,
@@ -38,7 +38,7 @@ pub struct EntityCaMaterial {
     pub admin_public_jwk: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EntityCaMeta {
     entity_id: String,
@@ -625,3 +625,6 @@ mod tests {
         assert!(res.issued.platform_cert_pem.is_some());
     }
 }
+
+redacted_debug!(EntityCaMaterial { entity_id, ski, common_name, public_jwk, ca_cert_pem, admin_ski, admin_public_jwk } redact { private_jwk } redact_opt { admin_private_jwk });
+redacted_debug!(EntityCaMeta { entity_id, ski, common_name, public_jwk, admin_ski, admin_public_jwk } redact { private_jwk } redact_opt { admin_private_jwk });

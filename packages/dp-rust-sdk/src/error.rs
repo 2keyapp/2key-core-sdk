@@ -4,7 +4,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("HTTP {status}: {body}")]
+    /// `Display` shows the status and the server error code only (never the body, which can
+    /// carry tokens); the body stays available on the field for callers that need it.
+    #[error("HTTP {status}{}", http_code_suffix(.body))]
     Http { status: u16, body: String },
 
     #[error("request failed: {0}")]
@@ -85,5 +87,33 @@ impl Error {
 
     pub fn agent(msg: impl Into<String>) -> Self {
         Self::Agent(msg.into())
+    }
+}
+
+/// `": <code>"` from a JSON body's `code` or `error` field when it is a short identifier.
+fn http_code_suffix(body: &str) -> String {
+    let code = serde_json::from_str::<serde_json::Value>(body).ok().and_then(|v| {
+        ["code", "error"]
+            .iter()
+            .find_map(|k| v.get(*k).and_then(|c| c.as_str()).map(str::to_string))
+    });
+    match code {
+        Some(c) if !c.is_empty() && c.len() <= 64 && c.chars().all(|ch| ch.is_ascii_alphanumeric() || "_.-".contains(ch)) => {
+            format!(": {c}")
+        }
+        _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::Error;
+
+    #[test]
+    fn http_display_never_contains_the_body() {
+        let e = Error::Http { status: 401, body: r#"{"code":"token_expired","token":"eyJhbGciOi.secret.sig"}"#.into() };
+        assert_eq!(e.to_string(), "HTTP 401: token_expired");
+        let e = Error::Http { status: 502, body: "<html>upstream Bearer abc123</html>".into() };
+        assert_eq!(e.to_string(), "HTTP 502");
     }
 }

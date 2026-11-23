@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 use crate::keystore::{self, KeyStore};
 
 /// Material the Target/Source agent needs to stay resident and present mTLS.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AgentIdentity {
     pub machine_identity: String,
     pub endorsed_pem: String,
@@ -60,3 +60,5 @@ mod tests {
         assert!(err.to_string().contains("machine.key"));
     }
 }
+
+redacted_debug!(AgentIdentity { machine_identity, endorsed_pem, platform_root_pem } redact { key_pem } redact_opt {});

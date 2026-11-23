@@ -3,6 +3,32 @@
 //! Wraps [`dp_rust`] wire types and [`dp_rust_mtls`] key/CSR helpers. The CLI
 //! (`dp-cli`) is a thin frontend over this crate.
 
+
+/// Prints `[REDACTED]` in place of a secret value.
+pub(crate) struct Redacted;
+
+impl std::fmt::Debug for Redacted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[REDACTED]")
+    }
+}
+
+/// `Debug` that never prints key material or tokens (agent docs/observability/07 R-PRIV-1).
+/// `redact` fields print `[REDACTED]`; `redact_opt` fields print `Some([REDACTED])` / `None`.
+macro_rules! redacted_debug {
+    ($ty:ident { $($field:ident),* } redact { $($secret:ident),* } redact_opt { $($opt:ident),* }) => {
+        impl ::std::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.debug_struct(stringify!($ty))
+                    $(.field(stringify!($field), &self.$field))*
+                    $(.field(stringify!($secret), &$crate::Redacted))*
+                    $(.field(stringify!($opt), &self.$opt.as_ref().map(|_| $crate::Redacted)))*
+                    .finish()
+            }
+        }
+    };
+}
+
 mod admin;
 mod agent;
 mod billing_ids;

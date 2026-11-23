@@ -133,7 +133,7 @@ impl std::fmt::Display for EnrollmentStatus {
 }
 
 /// On-disk machine metadata. No private keys.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineState {
     pub machine_identity: String,
@@ -230,7 +230,7 @@ impl KickstartRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct KickstartKeyMaterial {
     #[serde(default)]
@@ -269,7 +269,7 @@ pub struct EntityResponse {
     pub extra: serde_json::Map<String, Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnrollCreateRequest {
     pub entity_id: String,
@@ -290,7 +290,7 @@ pub struct EnrollCreateRequest {
     pub invite_token: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnrollCreateResponse {
     #[serde(default, alias = "id")]
@@ -323,7 +323,7 @@ pub struct EnrollInviteRequest {
     pub max_uses: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnrollInviteResponse {
     #[serde(default, alias = "id")]
@@ -655,3 +655,9 @@ mod tests {
         assert!(normalize_ca_file_pem("not a cert").is_none());
     }
 }
+
+redacted_debug!(MachineState { machine_identity, entity_id, machine_name, ski, enrollment_id, status, cert_serial, cert_expires_at, created_at, renewed_from_ski, kind } redact {} redact_opt { pull_token });
+redacted_debug!(KickstartKeyMaterial { credential } redact {} redact_opt { private_jwk });
+redacted_debug!(EnrollCreateRequest { entity_id, paying_party_id, member_id, host, kind, subject_ski, public_jwk, csr_pem } redact {} redact_opt { invite_token });
+redacted_debug!(EnrollCreateResponse { enroll_id, status, ski, issued } redact {} redact_opt { pull_token });
+redacted_debug!(EnrollInviteResponse { invite_id, host, entity_id, kind, expires_at, max_uses } redact {} redact_opt { invite_token });

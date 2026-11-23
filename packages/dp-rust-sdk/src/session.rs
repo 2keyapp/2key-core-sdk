@@ -33,7 +33,7 @@ pub struct SessionUser {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredSession {
     #[serde(default = "session_schema")]
@@ -154,7 +154,7 @@ pub struct DeviceCodeResponse {
     pub interval: Option<u64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct DeviceTokenIssued {
     pub access_token: String,
     #[serde(default)]
@@ -415,3 +415,6 @@ mod tests {
         }
     }
 }
+
+redacted_debug!(StoredSession { schema, transport, expires_at, user } redact { token } redact_opt {});
+redacted_debug!(DeviceTokenIssued { token_type, expires_in } redact { access_token } redact_opt {});
