@@ -1,0 +1,60 @@
+{
+  "claims": {
+    "payload_version": 4,
+    "iss": "https://billing.example.com",
+    "aud": "billing-license",
+    "iat": 1700000100,
+    "paying_party": {
+      "id": "pp_acme_org",
+      "billing_email": "billing@org.example",
+      "organization_name": "Acme Org"
+    },
+    "using_party": {
+      "identity_provider": "better-auth",
+      "identity_subject": "user-1",
+      "member_id": "member-2",
+      "email": "user@acme.example"
+    },
+    "devices": [
+      {
+        "ski": "ski-laptop",
+        "device_id": "dev-laptop",
+        "platform": "desktop",
+        "friendly_name": "Laptop"
+      },
+      {
+        "ski": "ski-desk",
+        "device_id": "dev-desk",
+        "platform": "desktop"
+      }
+    ],
+    "subscriptions": [
+      {
+        "subscription_id": "sub_bundle",
+        "paying_party_id": "pp_acme_1",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "pro_bundle", "name": "Pro Bundle", "is_bundle": true },
+        "quantity": 2,
+        "status": "active",
+        "billing_interval": "annual",
+        "valid_from": 1700000000,
+        "valid_until": 4000000000,
+        "offerings": { "base": 2, "storage": 4 },
+        "resources": { "disk_space_gb": 40 }
+      },
+      {
+        "subscription_id": "sub_storage_org",
+        "paying_party_id": "pp_acme_org",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "storage", "name": "Storage 10 GB", "is_bundle": false },
+        "quantity": 1,
+        "status": "trialing",
+        "billing_interval": "annual",
+        "valid_from": 1700000000,
+        "valid_until": 3900000000,
+        "offerings": { "storage": 1 },
+        "resources": { "disk_space_gb": 10 }
+      }
+    ]
+  }
+}
