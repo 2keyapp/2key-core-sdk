@@ -1,0 +1,204 @@
+{
+  "description": "License v4 processor sums. Each case picks licenses (optionally only some of their subscriptions), merges them, builds a processor at `now` with an optional host catalog, and checks the results. Dart and JS both run every case.",
+  "now": 1800000000,
+  "catalogFile": "acme_catalog_export.json",
+  "cases": [
+    {
+      "name": "direct plan x3",
+      "licenses": [{ "file": "license_payload_v4.json", "subscriptions": ["sub_base"] }],
+      "catalog": null,
+      "expected": {
+        "plans": { "base": 3 },
+        "offerings": { "base": 3 },
+        "resources": {},
+        "offeringCount": { "base": 3, "storage": 0 },
+        "resourceAmount": { "disk_space_gb": 0 },
+        "holdsPlan": { "base": true, "pro_bundle": false },
+        "holds": { "base": true, "storage": false },
+        "sources": { "base": ["sub_base"], "storage": [] },
+        "expiry": { "base": 4102444800, "storage": null },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "bundle x2",
+      "licenses": [{ "file": "license_payload_v4.json", "subscriptions": ["sub_bundle"] }],
+      "catalog": null,
+      "expected": {
+        "plans": { "pro_bundle": 2 },
+        "offerings": { "base": 2, "storage": 4 },
+        "resources": { "disk_space_gb": 40 },
+        "offeringCount": { "base": 2, "storage": 4 },
+        "resourceAmount": { "disk_space_gb": 40 },
+        "holdsPlan": { "pro_bundle": true, "base": false },
+        "holds": { "base": true, "storage": true },
+        "sources": { "base": ["sub_bundle"], "storage": ["sub_bundle"] },
+        "expiry": { "base": 4000000000, "storage": 4000000000 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "direct plan and bundle together",
+      "licenses": [
+        { "file": "license_payload_v4.json", "subscriptions": ["sub_base", "sub_bundle"] }
+      ],
+      "catalog": null,
+      "expected": {
+        "plans": { "base": 3, "pro_bundle": 2 },
+        "offerings": { "base": 5, "storage": 4 },
+        "resources": { "disk_space_gb": 40 },
+        "offeringCount": { "base": 5, "storage": 4 },
+        "resourceAmount": { "disk_space_gb": 40 },
+        "holdsPlan": { "base": true, "pro_bundle": true },
+        "holds": { "base": true, "storage": true },
+        "sources": { "base": ["sub_base", "sub_bundle"], "storage": ["sub_bundle"] },
+        "expiry": { "base": 4102444800, "storage": 4000000000 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "ended subscription is not counted",
+      "licenses": [
+        { "file": "license_payload_v4.json", "subscriptions": ["sub_bundle", "sub_storage_ended"] }
+      ],
+      "catalog": null,
+      "expected": {
+        "plans": { "pro_bundle": 2 },
+        "offerings": { "base": 2, "storage": 4 },
+        "resources": { "disk_space_gb": 40 },
+        "offeringCount": { "storage": 4 },
+        "resourceAmount": { "disk_space_gb": 40 },
+        "holdsPlan": { "storage": false },
+        "holds": { "storage": true },
+        "sources": { "storage": ["sub_bundle"] },
+        "expiry": { "storage": 4000000000 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "every subscription ended",
+      "licenses": [{ "file": "license_payload_v4.json", "subscriptions": ["sub_storage_ended"] }],
+      "catalog": null,
+      "expected": {
+        "plans": {},
+        "offerings": {},
+        "resources": {},
+        "offeringCount": { "storage": 0 },
+        "resourceAmount": { "disk_space_gb": 0 },
+        "holdsPlan": { "storage": false },
+        "holds": { "storage": false },
+        "sources": { "storage": [] },
+        "expiry": { "storage": null },
+        "allSubscriptionsEnded": true
+      }
+    },
+    {
+      "name": "two licenses sharing a subscription",
+      "licenses": [
+        { "file": "license_payload_v4.json", "subscriptions": ["sub_bundle"] },
+        { "file": "license_payload_v4_org.json" }
+      ],
+      "catalog": null,
+      "expected": {
+        "subscriptionIds": ["sub_bundle", "sub_storage_org"],
+        "deviceSkis": ["ski-laptop", "ski-office", "ski-desk"],
+        "payingPartyId": "pp_acme_1",
+        "plans": { "pro_bundle": 2, "storage": 1 },
+        "offerings": { "base": 2, "storage": 5 },
+        "resources": { "disk_space_gb": 50 },
+        "offeringCount": { "base": 2, "storage": 5 },
+        "resourceAmount": { "disk_space_gb": 50 },
+        "holdsPlan": { "pro_bundle": true, "storage": true },
+        "holds": { "storage": true },
+        "sources": { "storage": ["sub_bundle", "sub_storage_org"] },
+        "expiry": { "base": 4000000000, "storage": 4000000000 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "whole license without a catalog",
+      "licenses": [{ "file": "license_payload_v4.json" }],
+      "catalog": null,
+      "expected": {
+        "plans": { "base": 3, "pro_bundle": 2, "legacy_base": 1, "beta_tools": 1 },
+        "offerings": { "base": 5, "storage": 4, "legacy_base": 1, "beta_tools": 1 },
+        "resources": { "disk_space_gb": 40, "beta_credits": 100 },
+        "offeringCount": { "base": 5, "beta_tools": 1 },
+        "resourceAmount": { "disk_space_gb": 40, "beta_credits": 100 },
+        "holdsPlan": { "beta_tools": true },
+        "holds": { "beta_tools": true },
+        "sources": { "base": ["sub_base", "sub_bundle"] },
+        "expiry": { "base": 4102444800 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "unknown code with a host catalog fails closed",
+      "licenses": [{ "file": "license_payload_v4.json" }],
+      "catalog": { "host": null },
+      "expected": {
+        "plans": { "base": 3, "pro_bundle": 2, "legacy_base": 1 },
+        "offerings": { "base": 5, "storage": 4, "legacy_base": 1 },
+        "resources": { "disk_space_gb": 40 },
+        "offeringCount": { "base": 6, "storage": 4, "legacy_base": 1, "beta_tools": 0 },
+        "resourceAmount": { "disk_space_gb": 40, "beta_credits": 0 },
+        "holdsPlan": { "beta_tools": false, "legacy_base": true },
+        "holds": { "beta_tools": false, "base": true },
+        "sources": { "base": ["sub_base", "sub_bundle", "sub_legacy"], "beta_tools": [] },
+        "expiry": { "base": 4102444800, "beta_tools": null },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "satisfying code counts for the code it satisfies",
+      "licenses": [{ "file": "license_payload_v4.json", "subscriptions": ["sub_legacy"] }],
+      "catalog": { "host": null },
+      "expected": {
+        "plans": { "legacy_base": 1 },
+        "offerings": { "legacy_base": 1 },
+        "resources": {},
+        "offeringCount": { "base": 1, "legacy_base": 1 },
+        "resourceAmount": {},
+        "holdsPlan": { "base": false, "legacy_base": true },
+        "holds": { "base": true },
+        "sources": { "base": ["sub_legacy"] },
+        "expiry": { "base": 4102444800 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "host excluding a platform drops its offerings",
+      "licenses": [{ "file": "license_payload_v4.json" }],
+      "catalog": { "host": "web" },
+      "expected": {
+        "plans": { "base": 3, "pro_bundle": 2 },
+        "offerings": { "base": 5, "storage": 4 },
+        "resources": { "disk_space_gb": 40 },
+        "offeringCount": { "base": 5, "legacy_base": 0 },
+        "resourceAmount": { "disk_space_gb": 40 },
+        "holdsPlan": { "legacy_base": false },
+        "holds": { "base": true },
+        "sources": { "base": ["sub_base", "sub_bundle"] },
+        "expiry": { "base": 4102444800 },
+        "allSubscriptionsEnded": false
+      }
+    },
+    {
+      "name": "host on another surface sees nothing",
+      "licenses": [{ "file": "license_payload_v4.json" }],
+      "catalog": { "host": "office" },
+      "expected": {
+        "plans": {},
+        "offerings": {},
+        "resources": {},
+        "offeringCount": { "base": 0, "office_sign": 0 },
+        "resourceAmount": { "disk_space_gb": 0 },
+        "holdsPlan": { "base": false },
+        "holds": { "base": false },
+        "sources": { "base": [] },
+        "expiry": { "base": null },
+        "allSubscriptionsEnded": false
+      }
+    }
+  ]
+}

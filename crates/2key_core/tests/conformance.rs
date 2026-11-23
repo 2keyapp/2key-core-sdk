@@ -11,7 +11,8 @@ use rand_core::OsRng;
 use serde_json::{json, Value};
 use sha2::Digest;
 use two_key_core::{
-    normalize_api_base_url, ErrorCode, InMemoryStorage, LicensePayload, SdkConfig, SystemClock,
+    normalize_api_base_url, ErrorCode, InMemoryStorage, LicensePayload, OfferingCatalog, SdkConfig,
+    SystemClock,
     TwoKeyClient, VerifyOutcome,
 };
 
@@ -20,7 +21,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn load_fixture_claims() -> Value {
-    let path = fixtures_dir().join("license_payload_v1.json");
+    let path = fixtures_dir().join("license_payload_v4.json");
     let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {:?}: {e}", path));
     let v: Value = serde_json::from_str(&raw).expect("fixture json");
     v.get("claims").cloned().expect("claims")
@@ -60,33 +61,190 @@ fn normalize_strips_suffix() {
     );
 }
 
-#[test]
-fn fixture_claims_parse() {
-    let claims = load_fixture_claims();
-    let payload = LicensePayload::from_claims(&claims).expect("parse");
-    assert_eq!(payload.payload_version, 1);
-    assert_eq!(payload.paying_party.id, "pp_test_1");
-    assert_eq!(payload.subscriptions.len(), 2);
-    assert!(payload.active_subscriptions().count() >= 1);
-    assert!(payload
-        .subscriptions
+fn read_fixture(name: &str) -> Value {
+    let path = fixtures_dir().join(name);
+    let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {:?}: {e}", path));
+    serde_json::from_str(&raw).expect("fixture json")
+}
+
+fn fixture_claims(name: &str) -> Value {
+    read_fixture(name).get("claims").cloned().expect("claims")
+}
+
+fn str_list(v: &Value) -> Vec<&str> {
+    v.as_array()
+        .unwrap()
         .iter()
-        .any(|s| s.addon_code.as_deref() == Some("ai_assistant")));
+        .map(|x| x.as_str().unwrap())
+        .collect()
+}
+
+fn case_license(spec: &Value) -> LicensePayload {
+    let mut claims = fixture_claims(spec["file"].as_str().unwrap());
+    if let Some(only) = spec.get("subscriptions").filter(|v| v.is_array()) {
+        let keep = str_list(only);
+        let subs: Vec<Value> = claims["subscriptions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|s| keep.contains(&s["subscription_id"].as_str().unwrap()))
+            .cloned()
+            .collect();
+        claims["subscriptions"] = Value::Array(subs);
+    }
+    LicensePayload::from_claims(&claims).expect("parse case license")
 }
 
 #[test]
-fn fixture_claims_parse_v3_entitlements() {
-    let path = fixtures_dir().join("license_payload_v3.json");
-    let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {:?}: {e}", path));
-    let v: Value = serde_json::from_str(&raw).expect("fixture json");
-    let claims = v.get("claims").cloned().expect("claims");
-    let payload = LicensePayload::from_claims(&claims).expect("parse v3");
-    assert_eq!(payload.payload_version, 3);
-    assert_eq!(payload.subscriptions[0].quantity, 2);
-    assert_eq!(payload.max_devices(1_700_000_000), 10);
-    assert_eq!(payload.resource_for_product("prod_mail", "max_devices"), 10);
-    assert!(payload.has_addon("scomm_connector", 1_700_000_000));
+fn v4_fixture_claims_parse() {
+    let payload =
+        LicensePayload::from_claims(&fixture_claims("license_payload_v4.json")).expect("parse v4");
+    assert_eq!(payload.payload_version, 4);
+    assert_eq!(payload.paying_party.id, "pp_acme_1");
+    assert_eq!(payload.using_party.member_id.as_deref(), Some("member-1"));
+    assert_eq!(payload.devices.len(), 2);
+    assert_eq!(payload.subscriptions.len(), 5);
+    let bundle = &payload.subscriptions[1];
+    assert_eq!(bundle.plan.code, "pro_bundle");
+    assert!(bundle.plan.is_bundle);
+    assert_eq!(bundle.offerings["storage"], 4);
+    assert_eq!(bundle.resources["disk_space_gb"], 40.0);
 }
+
+#[test]
+fn payload_versions_other_than_4_are_refused() {
+    for version in [1, 3, 5] {
+        let mut claims = fixture_claims("license_payload_v4.json");
+        claims["payload_version"] = json!(version);
+        let err = LicensePayload::from_claims(&claims).expect_err("refused");
+        assert!(
+            err.message.contains(&format!("payload_version {version}")),
+            "{}",
+            err.message
+        );
+    }
+}
+
+#[test]
+fn device_binding_follows_the_device_list() {
+    let payload = LicensePayload::from_claims(&fixture_claims("license_payload_v4.json")).unwrap();
+    assert!(payload.allows_local_device("ski-laptop"));
+    assert!(!payload.allows_local_device("ski-other"));
+    let mut claims = fixture_claims("license_payload_v4.json");
+    claims["devices"] = json!([]);
+    let unbound = LicensePayload::from_claims(&claims).unwrap();
+    assert!(unbound.allows_local_device("any"));
+}
+
+#[test]
+fn v4_processor_conformance() {
+    let doc = read_fixture("license_v4_expected.json");
+    let now = doc["now"].as_i64().unwrap();
+    let catalog_text =
+        fs::read_to_string(fixtures_dir().join(doc["catalogFile"].as_str().unwrap())).unwrap();
+    let catalog = OfferingCatalog::parse(&catalog_text).expect("catalog");
+
+    for case in doc["cases"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let licenses: Vec<LicensePayload> = case["licenses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(case_license)
+            .collect();
+        let payload = LicensePayload::merge(&licenses).expect("licenses");
+        let narrowed;
+        let catalog_ref = match case.get("catalog").filter(|c| !c.is_null()) {
+            None => None,
+            Some(spec) => match spec["host"].as_str() {
+                None => Some(&catalog),
+                Some(host) => {
+                    narrowed = catalog.for_host(host).expect("host");
+                    Some(&narrowed)
+                }
+            },
+        };
+        let p = payload.processor(catalog_ref);
+        let e = &case["expected"];
+
+        assert_eq!(json!(p.plans(now)), e["plans"], "{name}: plans");
+        assert_eq!(json!(p.offerings(now)), e["offerings"], "{name}: offerings");
+        let resources = p.resources(now);
+        let want_resources = e["resources"].as_object().unwrap();
+        assert_eq!(resources.len(), want_resources.len(), "{name}: resources keys");
+        for (key, amount) in want_resources {
+            assert_eq!(
+                resources.get(key).copied(),
+                amount.as_f64(),
+                "{name}: resources {key}"
+            );
+        }
+        for (code, n) in e["offeringCount"].as_object().unwrap() {
+            assert_eq!(
+                p.offering_count(code, now),
+                n.as_i64().unwrap(),
+                "{name}: offeringCount {code}"
+            );
+        }
+        for (key, n) in e["resourceAmount"].as_object().unwrap() {
+            assert_eq!(
+                p.resource_amount(key, now),
+                n.as_f64().unwrap(),
+                "{name}: resourceAmount {key}"
+            );
+        }
+        for (code, v) in e["holdsPlan"].as_object().unwrap() {
+            assert_eq!(
+                p.holds_plan(code, now),
+                v.as_bool().unwrap(),
+                "{name}: holdsPlan {code}"
+            );
+        }
+        for (code, v) in e["holds"].as_object().unwrap() {
+            assert_eq!(p.holds(code, now), v.as_bool().unwrap(), "{name}: holds {code}");
+        }
+        for (code, ids) in e["sources"].as_object().unwrap() {
+            let got: Vec<&str> = p
+                .sources(code, now)
+                .iter()
+                .map(|s| s.subscription_id.as_str())
+                .collect();
+            assert_eq!(got, str_list(ids), "{name}: sources {code}");
+        }
+        for (code, unix) in e["expiry"].as_object().unwrap() {
+            assert_eq!(
+                p.expiry_for(code, now),
+                unix.as_i64(),
+                "{name}: expiryFor {code}"
+            );
+        }
+        assert_eq!(
+            payload.all_subscriptions_ended(now),
+            e["allSubscriptionsEnded"].as_bool().unwrap(),
+            "{name}: allSubscriptionsEnded"
+        );
+        if let Some(ids) = e.get("subscriptionIds") {
+            assert_eq!(payload.subscription_ids(), str_list(ids), "{name}: subscriptionIds");
+        }
+        if let Some(skis) = e.get("deviceSkis") {
+            let got: Vec<&str> = payload.devices.iter().map(|d| d.ski.as_str()).collect();
+            assert_eq!(got, str_list(skis), "{name}: deviceSkis");
+        }
+        if let Some(id) = e.get("payingPartyId") {
+            assert_eq!(payload.paying_party.id, id.as_str().unwrap(), "{name}: payingPartyId");
+        }
+    }
+}
+
+#[test]
+fn processor_follows_the_clock() {
+    let payload = LicensePayload::from_claims(&fixture_claims("license_payload_v4.json")).unwrap();
+    let p = payload.processor(None);
+    assert_eq!(p.offering_count("storage", 1_800_000_000), 4);
+    assert_eq!(p.offering_count("storage", 4_000_000_000), 0);
+    assert_eq!(p.offering_count("base", 4_000_000_000), 3);
+}
+
 
 #[test]
 fn verify_signed_license_es256() {
@@ -113,7 +271,7 @@ fn verify_signed_license_es256() {
 
     let client = TwoKeyClient::new(cfg, InMemoryStorage::new(), FixedClock(now)).unwrap();
     match client.verify_license(&token) {
-        VerifyOutcome::Success(p) => assert_eq!(p.paying_party.billing_email, "billing@example.com"),
+        VerifyOutcome::Success(p) => assert_eq!(p.paying_party.billing_email, "billing@acme.example"),
         VerifyOutcome::Failure { code, message } => panic!("{code:?}: {message}"),
     }
 }

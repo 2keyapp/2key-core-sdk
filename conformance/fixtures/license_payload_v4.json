@@ -1,0 +1,99 @@
+{
+  "claims": {
+    "payload_version": 4,
+    "iss": "https://billing.example.com",
+    "aud": "billing-license",
+    "iat": 1700000000,
+    "paying_party": {
+      "id": "pp_acme_1",
+      "billing_email": "billing@acme.example",
+      "organization_name": "Acme Personal"
+    },
+    "using_party": {
+      "identity_provider": "better-auth",
+      "identity_subject": "user-1",
+      "member_id": "member-1",
+      "email": "user@acme.example"
+    },
+    "devices": [
+      {
+        "ski": "ski-laptop",
+        "device_id": "dev-laptop",
+        "platform": "desktop",
+        "friendly_name": "Laptop"
+      },
+      {
+        "ski": "ski-office",
+        "device_id": "dev-office",
+        "platform": "web"
+      }
+    ],
+    "subscriptions": [
+      {
+        "subscription_id": "sub_base",
+        "paying_party_id": "pp_acme_1",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "base", "name": "Base", "is_bundle": false },
+        "quantity": 3,
+        "status": "active",
+        "billing_interval": "annual",
+        "valid_from": 1700000000,
+        "valid_until": 4102444800,
+        "offerings": { "base": 3 },
+        "resources": {}
+      },
+      {
+        "subscription_id": "sub_bundle",
+        "paying_party_id": "pp_acme_1",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "pro_bundle", "name": "Pro Bundle", "is_bundle": true },
+        "quantity": 2,
+        "status": "active",
+        "billing_interval": "annual",
+        "valid_from": 1700000000,
+        "valid_until": 4000000000,
+        "offerings": { "base": 2, "storage": 4 },
+        "resources": { "disk_space_gb": 40 }
+      },
+      {
+        "subscription_id": "sub_storage_ended",
+        "paying_party_id": "pp_acme_1",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "storage", "name": "Storage 10 GB", "is_bundle": false },
+        "quantity": 1,
+        "status": "active",
+        "billing_interval": "monthly",
+        "valid_from": 1690000000,
+        "valid_until": 1700000000,
+        "offerings": { "storage": 1 },
+        "resources": { "disk_space_gb": 10 }
+      },
+      {
+        "subscription_id": "sub_legacy",
+        "paying_party_id": "pp_acme_1",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "legacy_base", "name": "Legacy Base", "is_bundle": false },
+        "quantity": 1,
+        "status": "trialing",
+        "billing_interval": "annual",
+        "valid_from": 1700000000,
+        "valid_until": 4102444800,
+        "offerings": { "legacy_base": 1 },
+        "resources": {}
+      },
+      {
+        "subscription_id": "sub_unknown",
+        "paying_party_id": "pp_acme_1",
+        "product": { "code": "acme", "name": "Acme" },
+        "plan": { "code": "beta_tools", "name": "Beta Tools", "is_bundle": false },
+        "quantity": 1,
+        "status": "active",
+        "billing_interval": "annual",
+        "valid_from": 1700000000,
+        "valid_until": 4102444800,
+        "offerings": { "beta_tools": 1 },
+        "resources": { "beta_credits": 100 }
+      }
+    ]
+  }
+}

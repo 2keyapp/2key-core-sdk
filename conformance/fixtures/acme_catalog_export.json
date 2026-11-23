@@ -1,0 +1,130 @@
+{
+  "exportVersion": 1,
+  "hosts": {
+    "desktop": {
+      "licensedPlatforms": ["desktop"],
+      "surfaces": ["mail"]
+    },
+    "office": {
+      "surfaces": ["office"]
+    },
+    "web": {
+      "excludePlatforms": ["linux"],
+      "surfaces": ["mail"]
+    }
+  },
+  "platforms": ["linux"],
+  "products": {
+    "acme": {
+      "description": "Acme Mail base seat with optional storage",
+      "displayName": "Acme",
+      "isActive": true,
+      "offerings": {
+        "base": {
+          "displayName": "Acme Base",
+          "isActive": true,
+          "resources": {},
+          "settings": {
+            "maxDevices": 3,
+            "surfaces": ["mail"]
+          }
+        },
+        "legacy_base": {
+          "displayName": "Acme Legacy Base",
+          "isActive": false,
+          "resources": {},
+          "settings": {
+            "platforms": ["linux"],
+            "satisfiesOfferings": ["base"],
+            "surfaces": ["mail"]
+          }
+        },
+        "office_sign": {
+          "displayName": "Office Signing",
+          "isActive": true,
+          "resources": {},
+          "settings": {
+            "package": "personal",
+            "surfaces": ["office"]
+          }
+        },
+        "storage": {
+          "displayName": "Storage 10 GB",
+          "isActive": true,
+          "resources": { "disk_space_gb": 10 },
+          "settings": {
+            "requiresOfferings": ["base"],
+            "surfaces": ["mail"]
+          }
+        }
+      },
+      "plans": {
+        "base": {
+          "displayName": "Base",
+          "isActive": true,
+          "isAddOn": false,
+          "isBase": true,
+          "isBundle": false,
+          "offerings": { "base": 1 },
+          "pricings": {
+            "annual": { "basePrice": 20, "currency": "USD" },
+            "monthly": { "basePrice": 2, "currency": "USD" }
+          },
+          "trialDays": 30
+        },
+        "legacy_base": {
+          "displayName": "Legacy Base",
+          "isActive": false,
+          "isAddOn": false,
+          "isBase": true,
+          "isBundle": false,
+          "offerings": { "legacy_base": 1 },
+          "pricings": {},
+          "trialDays": 0
+        },
+        "office_sign": {
+          "comingSoon": true,
+          "displayName": "Office Signing",
+          "isActive": true,
+          "isAddOn": false,
+          "isBase": true,
+          "isBundle": false,
+          "offerings": { "office_sign": 1 },
+          "pricings": {
+            "annual": { "basePrice": 12, "currency": "USD" }
+          },
+          "trialDays": 0
+        },
+        "pro_bundle": {
+          "description": "Base seat with 20 GB storage",
+          "displayName": "Pro Bundle",
+          "isActive": true,
+          "isAddOn": false,
+          "isBase": true,
+          "isBundle": true,
+          "offerings": { "base": 1, "storage": 2 },
+          "pricings": {
+            "annual": { "basePrice": 25, "currency": "USD" }
+          },
+          "trialDays": 14
+        },
+        "storage": {
+          "displayName": "Storage 10 GB",
+          "isActive": true,
+          "isAddOn": true,
+          "isBase": false,
+          "isBundle": false,
+          "offerings": { "storage": 1 },
+          "pricings": {
+            "annual": { "basePrice": 5, "currency": "USD" }
+          },
+          "trialDays": 0
+        }
+      },
+      "resources": {
+        "disk_space_gb": { "displayName": "Disk space", "unit": "GB" }
+      }
+    }
+  },
+  "surfaces": ["mail", "office"]
+}
