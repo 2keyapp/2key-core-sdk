@@ -822,6 +822,11 @@ fn ed25519_pubkey_from_cert_pem(cert_pem: &str) -> Result<[u8; 32], MtlsError> {
     Err(MtlsError::Pem("certificate has no Ed25519 SPKI".into()))
 }
 
+/// Ed25519 public key (raw 32 B, base64url) from a certificate's SPKI.
+pub fn ed25519_public_b64url_from_cert_pem(cert_pem: &str) -> Result<String, MtlsError> {
+    Ok(URL_SAFE_NO_PAD.encode(ed25519_pubkey_from_cert_pem(cert_pem)?))
+}
+
 /// HAProxy litmus: `cert_pem` verifies as an Ed25519 signature against `issuer_pem`.
 ///
 /// Used for Platform-endorsed leaves against the single Platform Root (`ca-file`).
